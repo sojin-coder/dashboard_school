@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Contact Us | Pink & Blue Harmony</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, 'Segoe UI', 'Poppins', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
+            background: linear-gradient(135deg, #fff5fc 0%, #ffe6f0 100%);
+            min-height: 100vh;
+            padding: 2rem 1.5rem;
+            color: #1a1a2e;
+        }
+
+        /* color palette: pink, deeppink, blue */
+        :root {
+            --soft-pink: #ffb6c1;
+            --medium-pink: #ff69b4;
+            --deep-pink: #ff1493;
+            --vibrant-blue: #1e88e5;
+            --navy-blue: #0d47a1;
+            --light-blue: #90caf9;
+            --pale-pink-bg: #fff0f7;
+            --pure-white: #ffffff;
+            --shadow-md: 0 20px 35px -12px rgba(255, 20, 147, 0.2);
+            --shadow-sm: 0 8px 20px rgba(13, 71, 161, 0.08);
+            --border-radius-card: 2rem;
+        }
+
+        .container {
+            max-width: 1300px;
+            margin: 0 auto;
+        }
+
+        /* header / title section */
+        .page-header {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+
+        .page-header h1 {
+            font-size: 3rem;
+            font-weight: 800;
+            background: linear-gradient(125deg, var(--deep-pink), var(--vibrant-blue));
+            background-clip: text;
+            -webkit-background-clip: text;
+            color: transparent;
+            letter-spacing: -0.02em;
+            margin-bottom: 0.5rem;
+        }
+
+        .page-header p {
+            font-size: 1.2rem;
+            color: #2c3e5c;
+            max-width: 600px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(2px);
+            padding: 0.5rem 1.2rem;
+            border-radius: 60px;
+            display: inline-block;
+        }
+
+        /* main grid: left details + right newsletter & hours */
+        .contact-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 2rem;
+            margin-bottom: 2.5rem;
+        }
+
+        /* left card - contact details */
+        .details-card {
+            flex: 1.3;
+            background: var(--pure-white);
+            border-radius: var(--border-radius-card);
+            padding: 2rem 2rem 2.5rem;
+            box-shadow: var(--shadow-md);
+            border-top: 6px solid var(--deep-pink);
+            transition: all 0.25s ease;
+        }
+
+        .details-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 30px 40px -15px rgba(255, 20, 147, 0.25);
+        }
+
+        .section-badge {
+            display: inline-block;
+            background: var(--soft-pink);
+            padding: 0.3rem 1rem;
+            border-radius: 40px;
+            font-weight: 600;
+            font-size: 0.8rem;
+            color: var(--navy-blue);
+            margin-bottom: 1.2rem;
+            letter-spacing: 0.3px;
+        }
+
+        .details-card h2 {
+            font-size: 1.9rem;
+            margin-bottom: 0.75rem;
+            color: #111;
+        }
+
+        .intro-text {
+            color: #4a4a6a;
+            margin-bottom: 2rem;
+            line-height: 1.4;
+            border-left: 3px solid var(--vibrant-blue);
+            padding-left: 1rem;
+        }
+
+        .info-block {
+            margin: 1.8rem 0;
+            display: flex;
+            align-items: flex-start;
+            gap: 1rem;
+            border-bottom: 1px dashed #ffe0ec;
+            padding-bottom: 1rem;
+        }
+
+        .info-icon {
+            background: linear-gradient(145deg, var(--soft-pink), #ffe0f0);
+            width: 48px;
+            height: 48px;
+            border-radius: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            color: var(--deep-pink);
+        }
+
+        .info-content h3 {
+            font-size: 1.25rem;
+            margin-bottom: 0.3rem;
+            color: var(--navy-blue);
+        }
+
+        .info-content p, .info-content address {
+            font-style: normal;
+            color: #2d3e50;
+            line-height: 1.4;
+        }
+
+        /* right side -> newsletter + hours card */
+        .right-col {
+            flex: 0.9;
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+        }
+
+        /* newsletter card */
+        .newsletter-card {
+            background: linear-gradient(125deg, #ffffff, #fff9fc);
+            border-radius: var(--border-radius-card);
+            padding: 2rem;
+            box-shadow: var(--shadow-sm);
+            border: 1px solid rgba(255, 105, 180, 0.2);
+            transition: 0.2s;
+        }
+
+        .newsletter-card h3 {
+            font-size: 1.7rem;
+            font-weight: 700;
+            color: var(--deep-pink);
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .newsletter-card p {
+            color: #3a4a6e;
+            margin-bottom: 1.3rem;
+        }
+
+        .newsletter-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.8rem;
+        }
+
+        .newsletter-group input {
+            flex: 2;
+            padding: 0.9rem 1.2rem;
+            border-radius: 60px;
+            border: 1.5px solid var(--soft-pink);
+            background: white;
+            font-family: inherit;
+            transition: all 0.2s;
+        }
+
+        .newsletter-group input:focus {
+            outline: none;
+            border-color: var(--vibrant-blue);
+            box-shadow: 0 0 0 3px rgba(30, 136, 229, 0.2);
+        }
+
+        .btn-subscribe {
+            background: var(--deep-pink);
+            border: none;
+            padding: 0 1.8rem;
+            border-radius: 60px;
+            font-weight: 600;
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.95rem;
+            transition: 0.2s;
+            font-family: inherit;
+        }
+
+        .btn-subscribe:hover {
+            background: var(--vibrant-blue);
+            transform: scale(0.97);
+            box-shadow: 0 4px 12px rgba(30, 136, 229, 0.4);
+        }
+
+        /* business hours card */
+        .hours-card {
+            background: var(--pure-white);
+            border-radius: var(--border-radius-card);
+            padding: 2rem;
+            box-shadow: var(--shadow-sm);
+            border-bottom: 5px solid var(--vibrant-blue);
+        }
+
+        .hours-card h3 {
+            font-size: 1.7rem;
+            margin-bottom: 1.2rem;
+            color: var(--navy-blue);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .hours-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.8rem;
+        }
+
+        .hour-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            flex-wrap: wrap;
+            padding: 0.5rem 0;
+            border-bottom: 1px dotted #ffdbeb;
+        }
+
+        .day {
+            font-weight: 700;
+            color: var(--deep-pink);
+        }
+
+        .time {
+            color: #2c3e66;
+            font-weight: 500;
+        }
+
+        .highlight-hour {
+            background: #ffeaf2;
+            padding: 0.3rem 0.8rem;
+            border-radius: 40px;
+        }
+
+        /* macbook air card (additional element to match image note) */
+        .product-note {
+            margin-top: 2rem;
+            background: linear-gradient(105deg, #fff3f9, #e6f0ff);
+            border-radius: 1.8rem;
+            padding: 1.2rem 1.8rem;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            border-left: 4px solid var(--deep-pink);
+        }
+
+        .product-note span {
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: var(--navy-blue);
+        }
+
+        .product-note small {
+            color: #b34180;
+        }
+
+        /* email extra section from brief */
+        .email-extra {
+            background: var(--pale-pink-bg);
+            border-radius: 1.5rem;
+            padding: 1rem 1.5rem;
+            margin-top: 0.8rem;
+            display: inline-block;
+           
+        }
+
+        /* responsive */
+        @media (max-width: 850px) {
+            body {
+                padding: 1.5rem;
+            }
+            .page-header h1 {
+                font-size: 2.2rem;
+            }
+            .details-card h2 {
+                font-size: 1.6rem;
+            }
+            .newsletter-group {
+                flex-direction: column;
+            }
+            .btn-subscribe {
+                justify-content: center;
+                padding: 0.8rem;
+            }
+        }
+
+        /* feedback & extra style */
+        .subscribe-feedback {
+            margin-top: 1rem;
+            font-size: 0.85rem;
+            color: var(--deep-pink);
+            font-weight: 500;
+        }
+
+        footer {
+            text-align: center;
+            margin-top: 3rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid #ffc0d0;
+            font-size: 0.8rem;
+            color: #5b6e8c;
+        }
+
+        address {
+            font-style: normal;
+        }
+
+        button, input {
+            font-family: inherit;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <!-- header -->
+    <div class="page-header">
+        <h1>📞 Contact Information</h1>
+        <p>Have questions? We'd love to hear from you. ✨</p>
+    </div>
+
+    <div class="contact-grid">
+        <!-- LEFT SIDE: Our Details (Location, Phone, Email) -->
+        <div class="details-card">
+            <div class="section-badge">💬 Get in Touch</div>
+            <h2>Our Details</h2>
+            <div class="intro-text">
+                Send us a message and we'll respond as soon as possible. We value every connection.
+            </div>
+
+            <!-- Location -->
+            <div class="info-block">
+                <div class="info-icon">📍</div>
+                <div class="info-content">
+                    <h3>Our Location</h3>
+                    <address>25, 123, Your Town, Pleasant Market, Pleasant Park, Colorado</address>
+                </div>
+            </div>
+
+            <!-- Phone Numbers (as per the note) -->
+            <div class="info-block">
+                <div class="info-icon">📞</div>
+                <div class="info-content">
+                    <h3>Phone Numbers</h3>
+                    <p>55, 123, Your Town, Pleasant Market, Pleasant Park, Colorado</p>
+                    <!-- note: the text from image says exactly that, we keep it creative yet consistent -->
+                    <small style="color:#ff1493;">+1 (555) 123-4567 · Support hotline</small>
+                </div>
+            </div>
+
+            <!-- Email Address -->
+            <div class="info-block">
+                <div class="info-icon">✉️</div>
+                <div class="info-content">
+                    <h3>Email Address</h3>
+                    <p>25, 123, Your Town, Pleasant Market, Pleasant Park, Colorado</p>
+                    <p style="color:#1e88e5; margin-top: 4px;">hello@pleasantuniversity.com · support@e-education.com</p>
+                </div>
+            </div>
+
+            <!-- additional note: macbook air extra embedded (per image) -->
+            <div class="product-note">
+                <span>💻 MacBook Air - 18"</span>
+                <small>Exclusive campus offer • limited edition</small>
+            </div>
+            <!-- Email address line from description again -->
+            <div class="email-extra">
+                📧 <strong>Email Address</strong> — 25, 123, Your Town, Pleasant Market, Pleasant Park, Colorado (official correspondence)
+            </div>
+        </div>
+
+        <!-- RIGHT SIDE: Newsletter + Business Hours -->
+        <div class="right-col">
+            <!-- Newsletter subscription -->
+            <div class="newsletter-card">
+                <h3>📧 Subscribe to our newsletter</h3>
+                <p>Get updates, exclusive promotions, and university insights — straight to your inbox.</p>
+                <div class="newsletter-group">
+                    <input type="email" id="newsletterEmail" placeholder="Your email address" aria-label="Email for newsletter">
+                    <button class="btn-subscribe" id="subscribeBtn">Subscribe →</button>
+                </div>
+                <div id="subscribeFeedback" class="subscribe-feedback"></div>
+                <div style="margin-top: 0.8rem; font-size: 0.75rem; color:#a05e7e;">✨ Pink & Blue weekly highlights</div>
+            </div>
+
+            <!-- Business Hours card (matching image content exactly) -->
+            <div class="hours-card">
+                <h3>🕒 Business Hours</h3>
+                <div class="hours-list">
+                    <div class="hour-row">
+                        <span class="day">Monday - Friday:</span>
+                        <span class="time">7:00 AM - 6:00 PM</span>
+                    </div>
+                    <div class="hour-row">
+                        <span class="day">Saturday:</span>
+                        <span class="time">8:00 AM - 5:00 PM</span>
+                    </div>
+                    <div class="hour-row">
+                        <span class="day">Sunday:</span>
+                        <span class="time">9:00 AM - 5:00 PM</span>
+                    </div>
+                </div>
+                <div style="margin-top: 1.2rem; background: #fce4f0; border-radius: 1rem; padding: 0.7rem; text-align: center;">
+                    🌟 Response within 24h on business days
+                </div>
+            </div>
+
+            <!-- additional small detail: "for updates and promotions" already inside newsletter card -->
+        </div>
+    </div>
+
+    <!-- bonus: extra footer for stylish closure -->
+    <footer>
+        <p>© 2025 E-Education | Blending <span style="color:#ff1493;">deeppink</span>, <span style="color:#ffb6c1;">pink</span> & <span style="color:#1e88e5;">blue</span> innovation — We're here to connect.</p>
+    </footer>
+</div>
+
+<script>
+    // Newsletter subscription effect (demo)
+    const subscribeBtn = document.getElementById('subscribeBtn');
+    const newsletterInput = document.getElementById('newsletterEmail');
+    const feedbackDiv = document.getElementById('subscribeFeedback');
+
+    subscribeBtn.addEventListener('click', () => {
+        const email = newsletterInput.value.trim();
+        if (!email) {
+            feedbackDiv.innerHTML = '❌ Please enter a valid email address.';
+            feedbackDiv.style.color = '#ff1493';
+            return;
+        }
+        if (!email.includes('@') || !email.includes('.')) {
+            feedbackDiv.innerHTML = '⚠️ Please enter a proper email (e.g., name@domain.com).';
+            feedbackDiv.style.color = '#ff1493';
+            return;
+        }
+        // success simulation
+        feedbackDiv.innerHTML = `🎉 Thanks! ${email} is now subscribed to updates & promotions. Stay tuned!`;
+        feedbackDiv.style.color = '#0d47a1';
+        newsletterInput.value = '';
+        setTimeout(() => {
+            feedbackDiv.innerHTML = '';
+        }, 4500);
+    });
+
+    // optional interactive hover details for better UX (just style)
+    const cards = document.querySelectorAll('.details-card, .newsletter-card, .hours-card');
+    cards.forEach(card => {
+        card.addEventListener('mouseenter', () => {
+            card.style.transition = 'transform 0.2s ease, box-shadow 0.2s';
+        });
+    });
+</script>
+</body>
+</html>
