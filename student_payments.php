@@ -508,6 +508,20 @@ if (!$result) {
                     <i class="fas fa-graduation-cap"></i> <span>Department</span>
                 </a>
                  <a href="schedule.php" class="nav-item" data-page="schedule"> <i class="fas fa-calendar-alt"></i> <span>Schedule class</span></a>
+                 <div class="dropdown-container">
+                <div class="nav-item dropdown-btn" onclick="toggleRequestDropdown()">
+                    <div>
+                        <i class="fas fa-file-pdf"></i> 
+                        <span class="m-2"> Request</span>
+                    </div>
+                    <i class="fas fa-chevron-down dropdown-icon" id="RequestDropdownIcon"></i>
+                </div>
+                <div class="dropdown-menus" id="RequestDropdownMenu">
+                    <a href=" Request_teacher.php" class="nav-item sub-menu"><i class="fas fa-chalkboard-teacher"></i><span>Teacher</span></a>
+                    <a href="Request_student.php" class="nav-item sub-menu"><i class="fas fa-users"></i><span>Student </span></a>
+                   
+                </div>
+            </div>
                 <a href="Employees.php" class="nav-item">
                     <i class="fas fa-user-friends"></i> <span>Employees</span>
                 </a>
@@ -773,6 +787,25 @@ if (!$result) {
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     
     <script>
+         function toggleRequestDropdown() {
+            let menu = document.getElementById("RequestDropdownMenu");
+            let icon = document.getElementById("RequestDropdownIcon");
+            
+            if (menu.style.display === "block") {
+                menu.style.display = "none";
+                icon.style.transform = "rotate(0deg)";
+            } else {
+                // Close other dropdowns first
+                let studentMenu = document.getElementById("studentDropdownMenu");
+                let studentIcon = document.getElementById("studentDropdownIcon");
+                if (studentMenu) {
+                    studentMenu.style.display = "none";
+                    if (studentIcon) studentIcon.style.transform = "rotate(0deg)";
+                }
+                menu.style.display = "block";
+                icon.style.transform = "rotate(180deg)";
+            }
+        }
         function toggleDropdown() {
             let menu = document.getElementById("studentDropdown");
             let icon = document.getElementById("dropdownIcon");

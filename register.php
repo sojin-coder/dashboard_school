@@ -99,7 +99,7 @@ if(isset($_POST['register'])){
         <input type="password" name="password" placeholder="Password" required>
 
         <select name="role">
-            <option value="admin">Admin</option>
+            <!-- <option value="admin">Admin</option> -->
             <option value="teacher">Teacher</option>
             <option value="student">Student</option>
         </select>

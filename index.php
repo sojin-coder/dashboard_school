@@ -364,6 +364,22 @@ if(!isset($_SESSION['id'])){
             <a href="teacher.php" class="nav-item" data-page="teachers"><i class="fas fa-chalkboard-teacher"></i> <span>Teachers</span></a>
             <a href="Courses.php" class="nav-item" data-page="courses"><i class="fas fa-graduation-cap"></i> <span>Department</span></a>
             <a href="schedule.php" class="nav-item" data-page="schedule"> <i class="fas fa-calendar-alt"></i> <span>Schedule class</span></a>
+            
+            <!-- Report Dropdown -->
+            <div class="dropdown-container">
+                <div class="nav-item dropdown-btn" onclick="toggleRequestDropdown()">
+                    <div>
+                        <i class="fas fa-file-pdf"></i> 
+                        <span class="m-2"> Request</span>
+                    </div>
+                    <i class="fas fa-chevron-down dropdown-icon" id="RequestDropdownIcon"></i>
+                </div>
+                <div class="dropdown-menus" id="RequestDropdownMenu">
+                    <a href=" Request_teacher.php" class="nav-item sub-menu"><i class="fas fa-chalkboard-teacher"></i><span>Teacher</span></a>
+                    <a href="Request_student.php" class="nav-item sub-menu"><i class="fas fa-users"></i><span>Student </span></a>
+                   
+                </div>
+            </div>
             <!-- Report Dropdown -->
             <div class="dropdown-container">
                 <div class="nav-item dropdown-btn" onclick="toggleReportDropdown()">
@@ -533,32 +549,35 @@ if(!isset($_SESSION['id'])){
                             </tr>
                         </thead>
                         <tbody>
-                        <?php
-                        
-                        $schedule_query = "SELECT * FROM schedule_class";
+                       <?php
+                             $today = date("Y-m-d");                             
 
-                        
-                        $sql = mysqli_query($conn, $schedule_query);
-                        if(mysqli_num_rows($sql) > 0){
-                            while($row = mysqli_fetch_assoc($sql)){
-                        ?>
-                        <tr>
-                            <td><?= htmlspecialchars($row['time_star'] ?? ''); ?></td>
-                            <td><?= htmlspecialchars($row['time_end'] ?? ''); ?></td>
-                            <td><?= htmlspecialchars($row['subject'] ?? ''); ?></td>
-                            <td><?= htmlspecialchars($row['department'] ?? ''); ?></td>
-                            <td><?= htmlspecialchars($row['class'] ?? ''); ?></td>
-                            <td><?= htmlspecialchars($row['shift'] ?? ''); ?></td>
-                            <td><?= htmlspecialchars($row['year'] ?? ''); ?></td>
-                            <td><?= htmlspecialchars($row['semester'] ?? ''); ?></td>
-                            <td><?= htmlspecialchars($row['date'] ?? ''); ?></td>
-                        </tr>
-                        <?php
-                            }
-                        } else {
-                            echo '<tr><td colspan="9" class="text-center">No schedule found</td></tr>';
-                        }
-                        ?>
+                             $stmt = $conn->prepare("SELECT * FROM schedule_class WHERE date = ?");
+                             $stmt->bind_param("s", $today);
+                             $stmt->execute();                             
+
+                             $sql = $stmt->get_result();                             
+
+                             if($sql->num_rows > 0){
+                                 while($row = $sql->fetch_assoc()){
+                             ?>
+                             <tr>
+                                 <td><?= htmlspecialchars($row['time_star']); ?></td>
+                                 <td><?= htmlspecialchars($row['time_end']); ?></td>
+                                 <td><?= htmlspecialchars($row['subject']); ?></td>
+                                 <td><?= htmlspecialchars($row['department']); ?></td>
+                                 <td><?= htmlspecialchars($row['class']); ?></td>
+                                 <td><?= htmlspecialchars($row['shift']); ?></td>
+                                 <td><?= htmlspecialchars($row['year']); ?></td>
+                                 <td><?= htmlspecialchars($row['semester']); ?></td>
+                                 <td><?= htmlspecialchars($row['date']); ?></td>
+                             </tr>
+                             <?php
+                                 }
+                             }else{
+                                 echo '<tr><td colspan="9" class="text-center">No schedule found</td></tr>';
+                             }
+                         ?>
                         </tbody>
                     </table>
                 </div>
@@ -585,7 +604,26 @@ if(!isset($_SESSION['id'])){
 
 <script>
 
-            // Toggle Report Dropdown
+            // Toggle Request Dropdown
+        function toggleRequestDropdown() {
+            let menu = document.getElementById("RequestDropdownMenu");
+            let icon = document.getElementById("RequestDropdownIcon");
+            
+            if (menu.style.display === "block") {
+                menu.style.display = "none";
+                icon.style.transform = "rotate(0deg)";
+            } else {
+                // Close other dropdowns first
+                let studentMenu = document.getElementById("studentDropdownMenu");
+                let studentIcon = document.getElementById("studentDropdownIcon");
+                if (studentMenu) {
+                    studentMenu.style.display = "none";
+                    if (studentIcon) studentIcon.style.transform = "rotate(0deg)";
+                }
+                menu.style.display = "block";
+                icon.style.transform = "rotate(180deg)";
+            }
+        }
         function toggleReportDropdown() {
             let menu = document.getElementById("reportDropdownMenu");
             let icon = document.getElementById("reportDropdownIcon");

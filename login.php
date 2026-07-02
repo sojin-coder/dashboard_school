@@ -1,66 +1,69 @@
 <?php
-    // session_start();
-    include "db.php";
-    
-    if(isset($_POST['login'])){
-    
-        $email = $_POST['email'];
-        $password = $_POST['password'];
-        $role = $_POST['role'];
-    
-        $sql = mysqli_query($conn,
+
+
+include "db.php";
+
+if(isset($_POST['login'])){
+    $email = $_POST['email'];
+    $password = $_POST['password'];
+    $role = $_POST['role'];
+
+    $sql = mysqli_query($conn,
         "SELECT * FROM logins 
         WHERE email='$email' AND role='$role'");
-    
-        if(mysqli_num_rows($sql) > 0){
-    
-            $row = mysqli_fetch_assoc($sql);
-    
-            if(password_verify($password,$row['password'])){
-    
-                $_SESSION['id'] = $row['id'];
-                $_SESSION['name'] = $row['name'];
-                $_SESSION['role'] = $row['role'];
-    
-                // LOGIN BY ROLE
-                if($role == "admin"){
-    
-                    echo "
-                    <script>
-                        sessionStorage.setItem('login','true');
-                        window.location='index.php';
-                    </script>
-                    ";
-    
-                }elseif($role == "teacher"){
-    
-                    echo "
-                    <script>
-                        sessionStorage.setItem('login', 'true');
-                        window.location.href='forteacher.php';
-                    </script>
-                    ";
-    
-                }elseif($role == "student"){
-    
-                    echo "
-                    <script>
-                        sessionStorage.setItem('login','true');
-                       window.location.href='forstudent.php';
-                    </script>
-                    ";
-                }
-    
-            }else{
-                echo "<script>alert('Password Incorrect')</script>";
-            }
-    
-        }else{
-            echo "<script>alert('Email or Role Incorrect')</script>";
-        }
-    }
-?>
 
+    if(mysqli_num_rows($sql) > 0){
+        $row = mysqli_fetch_assoc($sql);
+
+        if(password_verify($password, $row['password'])){
+            // ============================================
+            // ✅ រក្សាទុកទិន្នន័យក្នុង Session
+            // ============================================
+            $_SESSION['id'] = $row['id'];
+            $_SESSION['name'] = $row['name'];
+            $_SESSION['email'] = $row['email'];
+            $_SESSION['role'] = $row['role'];
+            $_SESSION['student_logged_in'] = true;
+            
+            // ✅ កំណត់ថាបានបង្ហាញ Splash ហើយ
+            $_SESSION['splash_shown'] = false; // កំណត់ថាមិនទាន់បង្ហាញ Splash
+            
+            // រក្សាទុករូបភាពប្រសិនបើមាន
+            $_SESSION['student_image'] = $row['image'] ?? 'https://i.pinimg.com/736x/be/dd/b8/beddb8c8c3c4c967cb821aae0cb796e3.jpg';
+
+            // ============================================
+            // ✅ LOGIN BY ROLE - បញ្ជូនទៅ Splash Page
+            // ============================================
+            if($role == "admin"){
+                echo "
+                <script>
+                    sessionStorage.setItem('login','true');
+                    window.location='splash.php?role=admin';
+                </script>
+                ";
+            }elseif($role == "teacher"){
+                echo "
+                <script>
+                    sessionStorage.setItem('login', 'true');
+                    window.location.href='splash.php?role=teacher';
+                </script>
+                ";
+            }elseif($role == "student"){
+                echo "
+                <script>
+                    sessionStorage.setItem('login','true');
+                    window.location.href='splash.php?role=student';
+                </script>
+                ";
+            }
+        }else{
+            echo "<script>alert('Password Incorrect')</script>";
+        }
+    }else{
+        echo "<script>alert('Email or Role Incorrect')</script>";
+    }
+}
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -69,11 +72,9 @@
     <title>Login By Role</title>
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
-
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 
     <style>
-
         *{
             margin:0;
             padding:0;
@@ -211,155 +212,92 @@
         }
 
         @media(max-width:850px){
-
             .form_top{
                 flex-direction:column;
             }
-
             .img_form img{
                 max-height:250px;
             }
         }
-
     </style>
-
 </head>
 <body>
 
 <div class="form_top">
 
     <!-- IMAGE -->
-
     <div class="img_form">
         <img src="https://i.pinimg.com/736x/10/94/80/10948000785c904a6b9fa42e860c5b98.jpg">
     </div>
 
     <!-- LOGIN -->
-
     <div class="login-box">
 
         <!-- ROLE BUTTON -->
-
         <div class="btn-group-custom">
-
-            <button type="button"
-            class="role-btn active"
-            id="adminBtn">
-
+            <button type="button" class="role-btn active" id="adminBtn">
                 <i class="fas fa-user-shield"></i>
                 Admin
-
             </button>
-
-            <button type="button"
-            class="role-btn"
-            id="teacherBtn">
-
+            <button type="button" class="role-btn" id="teacherBtn">
                 <i class="fas fa-chalkboard-user"></i>
                 Teacher
-
             </button>
-
-            <button type="button"
-            class="role-btn"
-            id="studentBtn">
-
+            <button type="button" class="role-btn" id="studentBtn">
                 <i class="fas fa-graduation-cap"></i>
                 Student
-
             </button>
-
         </div>
 
         <h2>Welcome Back</h2>
-
         <div class="login-subhead">
             Sign in to access your dashboard
         </div>
 
         <!-- FORM -->
-
         <form method="POST" id="loginForm">
-
             <!-- HIDDEN ROLE -->
-
-            <input type="hidden"
-            name="role"
-            id="role"
-            value="admin">
+            <input type="hidden" name="role" id="role" value="admin">
 
             <!-- EMAIL -->
-
             <div class="input-group-custom">
-
                 <i class="fas fa-envelope"></i>
-
-                <input type="email"
-                name="email"
-                placeholder="Email Address"
-                required>
-
+                <input type="email" name="email" placeholder="Email Address" required>
             </div>
 
             <!-- PASSWORD -->
-
             <div class="input-group-custom">
-
                 <i class="fas fa-lock"></i>
-
-                <input type="password"
-                name="password"
-                placeholder="Password"
-                required>
-
+                <input type="password" name="password" placeholder="Password" required>
             </div>
 
             <!-- BUTTON -->
-
-            <button type="submit"
-            name="login"
-            class="btn-login">
-
+            <button type="submit" name="login" class="btn-login">
                 <i class="fas fa-right-to-bracket"></i>
                 Login
-
             </button>
-
         </form>
 
         <div class="register-link">
             Don't have account ?
-            <a href="register.php">
-                Register
-            </a>
+            <a href="register.php">Register</a>
         </div>
 
     </div>
-
 </div>
 
 <script>
-
     const adminBtn = document.getElementById('adminBtn');
     const teacherBtn = document.getElementById('teacherBtn');
     const studentBtn = document.getElementById('studentBtn');
-
     const roleInput = document.getElementById('role');
-
-    const roleBtns = [
-        adminBtn,
-        teacherBtn,
-        studentBtn
-    ];
+    const roleBtns = [adminBtn, teacherBtn, studentBtn];
 
     function setActiveRole(activeBtn, role){
-
         roleBtns.forEach(btn => {
             btn.classList.remove('active');
         });
-
         activeBtn.classList.add('active');
-
         roleInput.value = role;
     }
 
@@ -374,7 +312,6 @@
     studentBtn.addEventListener('click', () => {
         setActiveRole(studentBtn,'student');
     });
-
 </script>
 
 </body>

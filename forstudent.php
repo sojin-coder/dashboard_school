@@ -1,56 +1,126 @@
 <?php
-
+// Start session if not already started
+if (session_status() === PHP_SESSION_NONE) {
+    // session_start();
+}
 
 include "db.php";
 
 // ការពារ user ប្តូរ link
-if(!isset($_SESSION['id'])){
+if (!isset($_SESSION['id'])) {
     header("Location: login.php");
     exit();
 }
 
-$db_conn = $conn ?? $connection; 
+$db_conn = $conn ?? $connection;
 
+// ============================================
+// យកអ៊ីមែលពី Session
+// ============================================
+$logged_in_email = $_SESSION['email'] ?? '';
+$logged_in_user_id = (int)$_SESSION['id'];
 
-$logged_in_user_id = $_SESSION['id'];
+// បើគ្មានអ៊ីមែលក្នុង Session ប្រើឈ្មោះ
+if (empty($logged_in_email)) {
+    $logged_in_name = $_SESSION['name'] ?? '';
+    $sql_student_info = "SELECT * FROM students WHERE name = '$logged_in_name'";
+} else {
+    $sql_student_info = "SELECT * FROM students WHERE email = '$logged_in_email'";
+}
 
+$result_student_info = mysqli_query($db_conn, $sql_student_info);
+$student_info = mysqli_fetch_assoc($result_student_info);
 
+// ============================================
+// បើរកមិនឃើញ បង្ហាញកំហុស
+// ============================================
+if (!$student_info) {
+    echo "<div style='padding:30px; background:#f8d7da; color:#721c24; border-radius:10px; margin:20px; font-family:Arial;'>
+        <h3>⚠️ Student Not Found!</h3>
+        <p><strong>Email from Session:</strong> " . htmlspecialchars($logged_in_email) . "</p>
+        <p><strong>Name from Session:</strong> " . htmlspecialchars($_SESSION['name'] ?? 'N/A') . "</p>
+        <p><strong>Role:</strong> " . htmlspecialchars($_SESSION['role'] ?? 'N/A') . "</p>
+        <hr>
+        <p><strong>Available students in database:</strong></p>
+        <ul>";
+    
+    $all_students = mysqli_query($db_conn, "SELECT id, name, email FROM students");
+    while ($t = mysqli_fetch_assoc($all_students)) {
+        echo "<li>ID: {$t['id']} - {$t['name']} ({$t['email']})</li>";
+    }
+    
+    echo "</ul>
+        <a href='logout.php' style='display:inline-block; padding:10px 20px; background:#dc3545; color:white; text-decoration:none; border-radius:5px;'>Logout</a>
+    </div>";
+    exit();
+}
+
+// ============================================
+// យកទិន្នន័យសិស្ស
+// ============================================
+$logged_in_student = $student_info['name'];
+$logged_in_id = $student_info['id'];
+$student_department = $student_info['college'] ?? 'N/A';
+$student_grade = $student_info['grade'] ?? 'N/A';
+$student_phone = $student_info['phone'] ?? '';
+$student_email_db = $student_info['email'] ?? '';
+$student_gender = $student_info['gender'] ?? '';
+$student_dob = $student_info['dob'] ?? '';
+$student_address = $student_info['address'] ?? '';
+$student_shift = $student_info['Shift'] ?? 'N/A';
+$student_year = $student_info['year'] ?? 'N/A';
+$student_skill = $student_info['skill'] ?? 'N/A';
+$student_image = $student_info['image'] ?? '';
+
+// ============================================
+// កំណត់ user_id សម្រាប់ប្រើក្នុង Query
+// ============================================
 if (isset($_GET['search_id']) && !empty(trim($_GET['search_id']))) {
     $user_id = mysqli_real_escape_string($db_conn, trim($_GET['search_id']));
 } else {
-    $user_id = $logged_in_user_id; 
+    $user_id = $logged_in_id;
 }
 
-
+// ============================================
+// យកទិន្នន័យសិស្សតាម ID ដែលបានស្វែងរក
+// ============================================
 $student_query = "SELECT * FROM students WHERE id = '$user_id'";
 $student_result = mysqli_query($db_conn, $student_query);
 
-if(!$student_result){
+if (!$student_result) {
     die("Query Error (students): " . mysqli_error($db_conn));
 }
 
 $student = mysqli_fetch_assoc($student_result);
 
-
 $search_error = false;
-if(!$student){
+if (!$student) {
     $search_error = true;
-    $user_id = $logged_in_user_id; 
+    $user_id = $logged_in_id;
     $student_query = "SELECT * FROM students WHERE id = '$user_id'";
     $student_result = mysqli_query($db_conn, $student_query);
     $student = mysqli_fetch_assoc($student_result);
 }
 
+// ============================================
+// យកទិន្នន័យផ្សេងៗ
+// ============================================
 
+// Enrollments
 $enroll_query = "SELECT course_id, enroll_date FROM enrollments WHERE student_id = '$user_id' LIMIT 5";
 $enroll_result = mysqli_query($db_conn, $enroll_query);
-if(!$enroll_result){ $enroll_result = false; }
+if (!$enroll_result) {
+    $enroll_result = false;
+}
 
-
+// Scores
 $scores_query = "SELECT course_id, score FROM scores WHERE student_id = '$user_id' ORDER BY id DESC LIMIT 5";
 $scores_result = mysqli_query($db_conn, $scores_query);
-if(!$scores_result){ $scores_result = false; }
+if (!$scores_result) {
+    $scores_result = false;
+}
 
+// Attendance
 $attendance_query = "SELECT 
     COUNT(*) as total_days,
     SUM(CASE WHEN status = 'P' THEN 1 ELSE 0 END) as present_days 
@@ -59,12 +129,29 @@ $attendance_query = "SELECT
     AND MONTH(attendance_date) = MONTH(CURRENT_DATE())";
 $att_data_result = mysqli_query($db_conn, $attendance_query);
 
-if($att_data_result && mysqli_num_rows($att_data_result) > 0){
+if ($att_data_result && mysqli_num_rows($att_data_result) > 0) {
     $att_data = mysqli_fetch_assoc($att_data_result);
     $attendance_rate = ($att_data['total_days'] ?? 0) > 0 ? round(($att_data['present_days'] / $att_data['total_days']) * 100) : 0;
 } else {
     $attendance_rate = 0;
 }
+
+// ============================================
+// គណនាស្ថិតិ
+// ============================================
+$sql_total_students = mysqli_query($db_conn, "SELECT COUNT(*) as total FROM students");
+$total_students_all = mysqli_fetch_assoc($sql_total_students)['total'] ?? 0;
+
+$sql_total_colleges = mysqli_query($db_conn, "SELECT COUNT(DISTINCT college) as total FROM students");
+$total_colleges = mysqli_fetch_assoc($sql_total_colleges)['total'] ?? 0;
+
+// Count students in same department/college
+$sql_same_dept = mysqli_query($db_conn, "SELECT COUNT(*) as total FROM students WHERE college = '$student_department'");
+$total_same_dept = mysqli_fetch_assoc($sql_same_dept)['total'] ?? 0;
+
+// Count total teachers
+$sql_teachers_total = mysqli_query($db_conn, "SELECT COUNT(*) as total FROM teachers");
+$total_teachers = mysqli_fetch_assoc($sql_teachers_total)['total'] ?? 0;
 ?>
 
 <!DOCTYPE html>
@@ -89,7 +176,16 @@ if($att_data_result && mysqli_num_rows($att_data_result) > 0){
             box-shadow: 4px 0 20px rgba(0, 0, 0, 0.08); z-index: 10; margin-left: -12px;
         }
         .sidebar-header { padding: 28px 24px; border-bottom: 1px solid rgba(255, 255, 255, 0.1); margin-bottom: 24px; text-align: center; }
-        .sidebar-header img { width: 100px; height: 100px; border-radius: 50%; margin: auto; display: block; border: 4px solid white; object-fit: cover; }
+        .sidebar-header .profile-img { 
+            width: 100px; 
+            height: 100px; 
+            border-radius: 50%; 
+            margin: 0 auto 12px auto; 
+            display: block; 
+            border: 4px solid rgba(255, 255, 255, 0.8); 
+            object-fit: cover; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2); 
+        }
         .sidebar-header h1 { font-size: 1.5rem; font-weight: 700; color: white; margin-top: 10px; }
         .sidebar-header p { font-size: 0.85rem; opacity: 0.8; }
         .nav-menu { flex: 1; padding: 0 16px; }
@@ -102,18 +198,38 @@ if($att_data_result && mysqli_num_rows($att_data_result) > 0){
         .top-bar { display: flex; justify-content: space-between; align-items: center; padding: 12px 24px; background: white; border-radius: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin-bottom: 28px; gap: 15px; flex-wrap: wrap; }
         .page-title h2 { font-size: 1.3rem; font-weight: 600; color: #1e293b; margin: 0; }
         
-        /* Search Bar Styling */
         .search-box { display: flex; gap: 5px; max-width: 350px; width: 100%; }
         .search-box input { border-radius: 10px 0 0 10px; border: 1px solid #cbd5e1; padding: 6px 12px; font-size: 14px; width: 100%; }
         .search-box button { border-radius: 0 10px 10px 0; background: #4f46e5; color: white; border: none; padding: 6px 15px; font-size: 14px; transition: 0.2s; }
         .search-box button:hover { background: #3b35b3; }
         
-        .profile-card { background: white; border-radius: 24px; padding: 24px; margin-bottom: 28px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); display: flex; align-items: center; gap: 30px; flex-wrap: wrap; }
-        .profile-avatar { width: 100px; height: 100px; background: linear-gradient(135deg, #4f46e5, #fd0054); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 48px; color: white; }
-        .profile-info h3 { font-size: 24px; font-weight: 700; margin-bottom: 8px; }
-        .profile-info .badge { background: #e0e7ff; color: #4f46e5; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
-        .info-grid { display: flex; gap: 40px; flex-wrap: wrap; margin-top: 12px; }
-        .info-item { display: flex; align-items: center; gap: 8px; font-size: 14px; color: #475569; }
+        .profile-card { 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 20px;
+            padding: 25px 30px;
+            margin-bottom: 25px;
+            color: white;
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
+            display: flex;
+            align-items: center;
+            gap: 30px;
+            flex-wrap: wrap;
+        }
+        .profile-card .avatar {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 35px;
+            border: 3px solid white;
+        }
+        .profile-card .info h3 { margin: 0 0 5px 0; font-size: 1.5rem; }
+        .profile-card .info p { margin: 0; opacity: 0.9; font-size: 0.95rem; }
+        .profile-card .info .details { display: flex; gap: 25px; margin-top: 10px; flex-wrap: wrap; }
+        .profile-card .info .details span { font-size: 0.85rem; opacity: 0.85; }
         
         .kpi-row { display: flex; flex-wrap: wrap; gap: 20px; margin-bottom: 32px; }
         .kpi-card { border-radius: 20px; padding: 20px 24px; flex: 1; min-width: 180px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); transition: transform 0.3s ease; background: white; border-left: 6px solid; text-align: left; }
@@ -141,32 +257,40 @@ if($att_data_result && mysqli_num_rows($att_data_result) > 0){
             .nav-item { justify-content: center; }
             .main-content { padding: 15px; }
             .profile-card { flex-direction: column; text-align: center; }
-            .info-grid { justify-content: center; }
+            .profile-card .info .details { justify-content: center; }
             .top-bar { flex-direction: column; align-items: flex-start; }
             .search-box { max-width: 100%; }
+            .sidebar-header .profile-img { width: 50px; height: 50px; }
         }
     </style>
 </head>
 <body>
+    <script>
+    if(sessionStorage.getItem('login') == null){
+        window.location='login.php';
+    }
+</script>
 
 <div class="container">
     <div class="sidebar">
         <div class="sidebar-header">
-            <img src="https://i.pinimg.com/736x/be/dd/b8/beddb8c8c3c4c967cb821aae0cb796e3.jpg" alt="Logo" />
-            <h1><?php 
-          
-                $log_query = mysqli_query($db_conn, "SELECT name FROM students WHERE id = '$logged_in_user_id'");
-                $log_user = mysqli_fetch_assoc($log_query);
-                echo htmlspecialchars($log_user['name'] ?? 'Student'); 
-            ?></h1>
-            <p>Student Dashboard</p>
+            <img src="<?php echo !empty($student_image) ? htmlspecialchars($student_image) : 'https://i.pinimg.com/736x/be/dd/b8/beddb8c8c3c4c967cb821aae0cb796e3.jpg'; ?>" 
+                 alt="Profile" 
+                 class="profile-img" />
+            <h1><?php echo htmlspecialchars($logged_in_student); ?></h1>
+            <p>
+                <i class="fas fa-graduation-cap"></i> <?php echo htmlspecialchars($student_department); ?>
+            </p>
+            <p style="font-size: 0.75rem; opacity: 0.7;">
+                <i class="fas fa-school"></i> Grade: <?php echo htmlspecialchars($student_grade); ?>
+            </p>
         </div>
         <div class="nav-menu">
-            <a href="index.php" class="nav-item active"><i class="fas fa-tachometer-alt"></i> <span>Main Dashboard</span></a>
-            <!-- <a href="teacher_fortea.php" class="nav-item"><i class="fas fa-chalkboard-teacher"></i> <span>Teachers</span></a> -->
-            <a href="courses_stu.php" class="nav-item"><i class="fas fa-graduation-cap"></i> <span>Department</span></a>
-            <!-- <a href="attendance_top_teacher.php" class="nav-item"><i class="fas fa-calendar-check"></i> <span>Attendance</span></a> -->
-            
+            <a href="forstudent.php" class="nav-item active"><i class="fas fa-tachometer-alt"></i> <span>Main Dashboard</span></a>
+            <a href="scores_stu.php" class="nav-item"><i class="fas fa-graduation-cap"></i> <span>Scores</span></a>
+            <a href="attendance_student.php" class="nav-item"><i class="fas fa-calendar-check"></i> <span>Attendance</span></a>
+            <a href="Requests.php" class="nav-item"><i class="fas fa-calendar-check"></i> <span>Request</span></a>
+            <a href="settings_student.php" class="nav-item"><i class="fas fa-cog"></i> <span>Setting</span></a>
             <div class="nav-bottom">
                 <a href="logout.php" class="nav-item" style="padding-left:8px;">
                     <i class="fas fa-sign-out-alt"></i> <span>Logout</span>
@@ -177,7 +301,7 @@ if($att_data_result && mysqli_num_rows($att_data_result) > 0){
 
     <div class="main-content">
         <div class="top-bar">
-            <div class="page-title"><h2><i class="fas fa-graduation-cap me-2"></i>My Dashboard</h2></div>
+            <div class="page-title"><h2><i class="fas fa-user-graduate me-2"></i>Student Dashboard</h2></div>
             
             <form method="GET" action="" class="search-box">
                 <input type="text" name="search_id" placeholder="Search by Student ID..." value="<?php echo isset($_GET['search_id']) ? htmlspecialchars($_GET['search_id']) : ''; ?>">
@@ -187,30 +311,34 @@ if($att_data_result && mysqli_num_rows($att_data_result) > 0){
             <div class="date-time" id="currentDateTime"></div>
         </div>
         
-        <?php if($search_error): ?>
+        <?php if ($search_error): ?>
             <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                <i class="fas fa-exclamation-triangle me-2"></i>  ID Not fount! 
+                <i class="fas fa-exclamation-triangle me-2"></i> ID Not found! Showing your own profile.
                 <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
             </div>
         <?php endif; ?>
         
+        <!-- STUDENT PROFILE CARD -->
         <div class="profile-card">
-            <div class="profile-avatar">
+            <div class="avatar">
                 <i class="fas fa-user-graduate"></i>
             </div>
-            <div class="profile-info">
+            <div class="info">
                 <h3><?php echo htmlspecialchars($student['name']); ?></h3>
-                <span class="badge">ID: <?php echo htmlspecialchars($student['id']); ?></span>
-                <div class="info-grid">
-                    <div class="info-item"><i class="fas fa-envelope"></i> <?php echo htmlspecialchars($student['email'] ?? 'N/A'); ?></div>
-                    <div class="info-item"><i class="fas fa-phone"></i> <?php echo htmlspecialchars($student['phone'] ?? 'N/A'); ?></div>
-                    <div class="info-item"><i class="fas fa-venus-mars"></i> <?php echo htmlspecialchars($student['gender'] ?? 'N/A'); ?></div>
-                    <div class="info-item"><i class="fas fa-calendar-alt"></i> DOB: <?php echo htmlspecialchars($student['dob'] ?? 'N/A'); ?></div>
-                    <div class="info-item"><i class="fas fa-school"></i> Grade: <?php echo htmlspecialchars($student['grade'] ?? 'N/A'); ?></div>
+                <p><i class="fas fa-envelope"></i> <?php echo htmlspecialchars($student['email'] ?? 'N/A'); ?></p>
+                <div class="details">
+                    <span><i class="fas fa-id-card"></i> ID: <?php echo htmlspecialchars($student['id']); ?></span>
+                    <span><i class="fas fa-phone"></i> <?php echo htmlspecialchars($student['phone'] ?? 'N/A'); ?></span>
+                    <span><i class="fas fa-venus-mars"></i> <?php echo htmlspecialchars($student['gender'] ?? 'N/A'); ?></span>
+                    <span><i class="fas fa-calendar"></i> DOB: <?php echo htmlspecialchars($student['dob'] ?? 'N/A'); ?></span>
+                    <span><i class="fas fa-graduation-cap"></i> College: <?php echo htmlspecialchars($student['college'] ?? 'N/A'); ?></span>
+                    <span><i class="fas fa-school"></i> Grade: <?php echo htmlspecialchars($student['grade'] ?? 'N/A'); ?></span>
+                    <span><i class="fas fa-clock"></i> Shift: <?php echo htmlspecialchars($student['Shift'] ?? 'N/A'); ?></span>
                 </div>
             </div>
         </div>
         
+        <!-- KPI CARDS -->
         <div class="kpi-row">
             <div class="kpi-card" style="border-left-color: #4f46e5;">
                 <div class="kpi-title"><i class="fas fa-chart-line"></i> Performance</div>
@@ -262,10 +390,10 @@ if($att_data_result && mysqli_num_rows($att_data_result) > 0){
                         </thead>
                         <tbody>
                             <?php 
-                            if($scores_result && mysqli_num_rows($scores_result) > 0):
+                            if ($scores_result && mysqli_num_rows($scores_result) > 0):
                                 $total_score = 0;
                                 $score_count = 0;
-                                while($score = mysqli_fetch_assoc($scores_result)): 
+                                while ($score = mysqli_fetch_assoc($scores_result)): 
                                     $total_score += $score['score'];
                                     $score_count++;
                                     $scoreClass = $score['score'] >= 80 ? 'score-high' : ($score['score'] >= 50 ? 'score-medium' : 'score-low');
@@ -294,8 +422,8 @@ if($att_data_result && mysqli_num_rows($att_data_result) > 0){
                         <tbody>
                             <?php 
                             $course_count = 0;
-                            if($enroll_result && mysqli_num_rows($enroll_result) > 0):
-                                while($enroll = mysqli_fetch_assoc($enroll_result)): 
+                            if ($enroll_result && mysqli_num_rows($enroll_result) > 0):
+                                while ($enroll = mysqli_fetch_assoc($enroll_result)): 
                                     $course_count++;
                             ?>
                             <tr>
@@ -313,6 +441,27 @@ if($att_data_result && mysqli_num_rows($att_data_result) > 0){
                 </div>
             </div>
         </div>
+        
+        <!-- STATISTICS ROW -->
+        <!-- <div class="kpi-row">
+            <div class="kpi-card" style="border-left-color: #8b5cf6; width: 100%;">
+                <div class="kpi-title"><i class="fas fa-users"></i> Statistics</div>
+                <div class="row">
+                    <div class="col-md-3">
+                        <strong>Total Students:</strong> <?php echo $total_students_all; ?>
+                    </div>
+                    <div class="col-md-3">
+                        <strong>Students in <?php echo htmlspecialchars($student_department); ?>:</strong> <?php echo $total_same_dept; ?>
+                    </div>
+                    <div class="col-md-3">
+                        <strong>Total Colleges:</strong> <?php echo $total_colleges; ?>
+                    </div>
+                    <div class="col-md-3">
+                        <strong>Total Teachers:</strong> <?php echo $total_teachers; ?>
+                    </div>
+                </div>
+            </div>
+        </div> -->
     </div>
 </div>
 
@@ -336,9 +485,9 @@ if($att_data_result && mysqli_num_rows($att_data_result) > 0){
         data: {
             labels: [
                 <?php 
-                if($scores_result && mysqli_num_rows($scores_result) > 0) {
+                if ($scores_result && mysqli_num_rows($scores_result) > 0) {
                     mysqli_data_seek($scores_result, 0); 
-                    while($score = mysqli_fetch_assoc($scores_result)) {
+                    while ($score = mysqli_fetch_assoc($scores_result)) {
                         echo "'Course #" . $score['course_id'] . "',";
                     }
                 } else {
@@ -350,9 +499,9 @@ if($att_data_result && mysqli_num_rows($att_data_result) > 0){
                 label: 'Score',
                 data: [
                     <?php 
-                    if($scores_result && mysqli_num_rows($scores_result) > 0) {
+                    if ($scores_result && mysqli_num_rows($scores_result) > 0) {
                         mysqli_data_seek($scores_result, 0);
-                        while($score = mysqli_fetch_assoc($scores_result)) {
+                        while ($score = mysqli_fetch_assoc($scores_result)) {
                             echo $score['score'] . ",";
                         }
                     } else {

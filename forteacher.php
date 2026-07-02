@@ -1,61 +1,251 @@
 <?php
-        include "db.php";
+    if (session_status() === PHP_SESSION_NONE) {
+        // session_start();
+    }
+    
+    include "db.php";
+    
+    // ការពារ user ប្តូរ link
+    if(!isset($_SESSION['id'])){
+        header("Location: login.php");
+        exit();
+    }
+    
+    // ============================================
+    // យកអ៊ីមែលពី Session
+    // ============================================
+    $logged_in_email = $_SESSION['email'] ?? '';
+    
+    // បើគ្មានអ៊ីមែលក្នុង Session ប្រើឈ្មោះ
+    if(empty($logged_in_email)) {
+        $logged_in_name = $_SESSION['name'] ?? '';
+        $sql_teacher_info = "SELECT * FROM teachers WHERE name = '$logged_in_name'";
+    } else {
+        $sql_teacher_info = "SELECT * FROM teachers WHERE email = '$logged_in_email'";
+    }
+    
+    $result_teacher_info = mysqli_query($conn, $sql_teacher_info);
+    $teacher_info = mysqli_fetch_assoc($result_teacher_info);
+    
+    // ============================================
+    // បើរកមិនឃើញ បង្ហាញកំហុស
+    // ============================================
+    if(!$teacher_info) {
+        echo "<div style='padding:30px; background:#f8d7da; color:#721c24; border-radius:10px; margin:20px; font-family:Arial;'>
+            <h3>⚠️ Teacher Not Found!</h3>
+            <p><strong>Email from Session:</strong> " . htmlspecialchars($logged_in_email) . "</p>
+            <p><strong>Name from Session:</strong> " . htmlspecialchars($_SESSION['name'] ?? 'N/A') . "</p>
+            <p><strong>Role:</strong> " . htmlspecialchars($_SESSION['role'] ?? 'N/A') . "</p>
+            <hr>
+            <p><strong>Available teachers in database:</strong></p>
+            <ul>";
         
-        // ការពារ user ប្តូរ link
-       if(!isset($_SESSION['id'])){
-           header("Location: login.php");
-            exit();
-         }
+        $all_teachers = mysqli_query($conn, "SELECT id, name, email FROM teachers");
+        while($t = mysqli_fetch_assoc($all_teachers)) {
+            echo "<li>ID: {$t['id']} - {$t['name']} ({$t['email']})</li>";
+        }
         
-        // ទាញយកព័ត៌មាន teacher ពី search
-        $teacher_info = null;
-        $teacher_department = null;
-        $total_students_by_college = 0;
-        $college_name = '';
-        $is_searching = false;
+        echo "</ul>
+            <a href='logout.php' style='display:inline-block; padding:10px 20px; background:#dc3545; color:white; text-decoration:none; border-radius:5px;'>Logout</a>
+        </div>";
+        exit();
+    }
+    
+    // ============================================
+    // យកទិន្នន័យគ្រូ
+    // ============================================
+    $logged_in_teacher = $teacher_info['name'];
+    $logged_in_id = $teacher_info['id'];
+    $teacher_department = $teacher_info['department'] ?? 'IT';
+    $teacher_subject = $teacher_info['subject'] ?? '';
+    $teacher_phone = $teacher_info['phone'] ?? '';
+    $teacher_email_db = $teacher_info['email'] ?? '';
+    $teacher_gender = $teacher_info['gender'] ?? '';
+    $teacher_dob = $teacher_info['dob'] ?? '';
+    $teacher_salary = $teacher_info['salary'] ?? 0;
+    $teacher_address = $teacher_info['address'] ?? '';
+    $teacher_image = $teacher_info['image'] ?? '';
+    
+    // ============================================
+    // គណនាស្ថិតិ
+    // ============================================
+    $sql_students_count = mysqli_query($conn, "SELECT COUNT(*) as total FROM students WHERE college = '$teacher_department'");
+    $total_students_by_dept = mysqli_fetch_assoc($sql_students_count)['total'] ?? 0;
+    
+    $sql_total_students = mysqli_query($conn, "SELECT COUNT(*) as total FROM students");
+    $total_students_all = mysqli_fetch_assoc($sql_total_students)['total'] ?? 0;
+    
+    $sql_total_college = mysqli_query($conn, "SELECT COUNT(DISTINCT college) as total FROM students");
+    $total_colleges = mysqli_fetch_assoc($sql_total_college)['total'] ?? 0;
+    
+    // ============================================
+    // យកកាលវិភាគដែលមានត្រងតាម Subject ឬ Teacher Name
+    // ============================================
+    // ទទួលតម្លៃ Filter ពី GET
+    $filter_type = isset($_GET['filter_type']) ? $_GET['filter_type'] : 'subject';
+    $filter_value = isset($_GET['filter_value']) ? $_GET['filter_value'] : '';
+    
+    // ប្រសិនបើគ្មានតម្លៃ Filter ប្រើ subject របស់គ្រូដែល Login
+    if(empty($filter_value)) {
+        $filter_value = $teacher_subject;
+    }
+    
+    // បង្កើត Query តាមប្រភេទ Filter
+    if($filter_type == 'subject') {
+        $schedule_query = "SELECT * FROM schedule_class 
+                           WHERE subject = '$filter_value' 
+                           ORDER BY date DESC, time_star ASC LIMIT 10";
+    } else if($filter_type == 'teacher') {
+        // បើតារាង schedule_class មានជួរឈរ teacher_name
+        // បើមិនមាន អាចប្រើ WHERE teacher_name = '$logged_in_teacher'
+        $schedule_query = "SELECT * FROM schedule_class 
+                           WHERE teacher_name = '$filter_value' 
+                           ORDER BY date DESC, time_star ASC LIMIT 10";
+    } else {
+        // Default: បង្ហាញទាំងអស់ (ឬតាម department)
+        $schedule_query = "SELECT * FROM schedule_class 
+                           WHERE department = '$teacher_department' 
+                           ORDER BY date DESC, time_star ASC LIMIT 10";
+    }
+    
+    $schedule_result = mysqli_query($conn, $schedule_query);
+    
+    // ============================================
+    // យកបញ្ជីមុខវិជ្ជាទាំងអស់សម្រាប់ Dropdown Filter
+    // ============================================
+    $subjects_query = "SELECT DISTINCT subject FROM schedule_class ORDER BY subject ASC";
+    $subjects_result = mysqli_query($conn, $subjects_query);
+    $subjects_list = [];
+    while($sub = mysqli_fetch_assoc($subjects_result)) {
+        $subjects_list[] = $sub['subject'];
+    }
+    
+    // ============================================
+    // យកបញ្ជីគ្រូទាំងអស់សម្រាប់ Dropdown Filter
+    // ============================================
+    // បើតារាង schedule_class មាន teacher_name
+    $teachers_query = "SELECT DISTINCT teacher_name FROM schedule_class WHERE teacher_name IS NOT NULL AND teacher_name != '' ORDER BY teacher_name ASC";
+    $teachers_result = mysqli_query($conn, $teachers_query);
+    $teachers_list = [];
+    while($tch = mysqli_fetch_assoc($teachers_result)) {
+        $teachers_list[] = $tch['teacher_name'];
+    }
+    
+    // ============================================
+    // យកពិន្ទុសិស្ស
+    // ============================================
+    $progress_query = "SELECT s.*, st.college 
+                       FROM scores s 
+                       JOIN students st ON s.name = st.name 
+                       WHERE s.subject = '$teacher_subject' 
+                       ORDER BY s.score DESC 
+                       LIMIT 5";
+    $progress_result = mysqli_query($conn, $progress_query);
+    
+    $top_query = "SELECT s.*, st.college 
+                  FROM scores s 
+                  JOIN students st ON s.name = st.name 
+                  WHERE s.subject = '$teacher_subject' AND s.Grade IN ('A','B') 
+                  ORDER BY s.score DESC 
+                  LIMIT 5";
+    $top_result = mysqli_query($conn, $top_query);
+    
+    $sql_teachers_total = mysqli_query($conn, "SELECT COUNT(*) as total FROM teachers");
+    $total_teachers = mysqli_fetch_assoc($sql_teachers_total)['total'] ?? 0;
+    
+    // ============================================
+    // យកថ្នាក់ដែលគ្រូបង្រៀននៅថ្ងៃនេះ
+    // ============================================
+    $today = date('Y-m-d');
+    $current_day = date('l');
+    
+    $today_classes_query = "SELECT tc.*, 
+                            tl.id as log_id, 
+                            tl.status as teaching_status,
+                            tl.teaching_date,
+                            tl.notes as teaching_notes
+                            FROM teacher_classes tc
+                            LEFT JOIN teaching_log tl ON tc.id = tl.class_id 
+                                AND tl.teacher_id = tc.teacher_id 
+                                AND tl.teaching_date = '$today'
+                            WHERE tc.teacher_id = '$logged_in_id' 
+                            AND tc.status = 'active'
+                            AND (tc.schedule_day = '$current_day' OR tc.schedule_day IS NULL)
+                            ORDER BY tc.start_time ASC";
+    $today_classes_result = mysqli_query($conn, $today_classes_query);
+    
+    $completed_count = 0;
+    $pending_count = 0;
+    $classes_today = [];
+    while($class = mysqli_fetch_assoc($today_classes_result)) {
+        $classes_today[] = $class;
+        if($class['teaching_status'] == 'completed') {
+            $completed_count++;
+        } else {
+            $pending_count++;
+        }
+    }
+    
+    // ============================================
+    // ដំណើរការសម្គាល់ថាបានបង្រៀនហើយ
+    // ============================================
+    if(isset($_POST['mark_taught'])) {
+        $class_id = mysqli_real_escape_string($conn, $_POST['class_id']);
+        $teaching_date = mysqli_real_escape_string($conn, $_POST['teaching_date']);
+        $notes = mysqli_real_escape_string($conn, $_POST['notes'] ?? '');
         
-        $search_id = isset($_GET['search_id']) ? mysqli_real_escape_string($conn, $_GET['search_id']) : '';
+        $check_sql = "SELECT id FROM teaching_log 
+                      WHERE teacher_id = '$logged_in_id' 
+                      AND class_id = '$class_id' 
+                      AND teaching_date = '$teaching_date'";
+        $check_result = mysqli_query($conn, $check_sql);
         
-        if(!empty($search_id)) {
-            $is_searching = true;
-            // Search teacher by ID or Name
-            $sql_teacher = mysqli_query($conn, "SELECT * FROM teachers WHERE id = '$search_id' OR name LIKE '%$search_id%'");
-            $teacher_info = mysqli_fetch_assoc($sql_teacher);
+        if(mysqli_num_rows($check_result) > 0) {
+            $update_sql = "UPDATE teaching_log SET 
+                           status = 'completed',
+                           notes = '$notes',
+                           updated_at = NOW()
+                           WHERE teacher_id = '$logged_in_id' 
+                           AND class_id = '$class_id' 
+                           AND teaching_date = '$teaching_date'";
+            mysqli_query($conn, $update_sql);
+        } else {
+            $class_info_sql = "SELECT class_name, subject FROM teacher_classes WHERE id = '$class_id'";
+            $class_info_result = mysqli_query($conn, $class_info_sql);
+            $class_info = mysqli_fetch_assoc($class_info_result);
             
-            if($teacher_info) {
-                // Get teacher's department/college
-                $teacher_department = isset($teacher_info['department']) ? $teacher_info['department'] : 'it';
-                $college_name = $teacher_department;
-                
-                // Count total students by teacher's college from students table
-                $sql_students_count = mysqli_query($conn, "SELECT COUNT(*) as total FROM students WHERE college = '$teacher_department'");
-                $total_students_by_college = mysqli_fetch_assoc($sql_students_count)['total'];
-            }
+            $insert_sql = "INSERT INTO teaching_log (
+                teacher_id, class_id, class_name, subject, 
+                teaching_date, status, notes
+            ) VALUES (
+                '$logged_in_id', '$class_id', 
+                '{$class_info['class_name']}', '{$class_info['subject']}',
+                '$teaching_date', 'completed', '$notes'
+            )";
+            mysqli_query($conn, $insert_sql);
         }
         
-        // ទាញយក total students ទាំងអស់
-        $sql_total_students = mysqli_query($conn, "SELECT COUNT(*) as total FROM students");
-        $total_students = mysqli_fetch_assoc($sql_total_students)['total'];
+        echo "<script>window.location='forteacher.php';</script>";
+        exit();
+    }
+    
+    // ============================================
+    // ដំណើរការមិនទាន់បង្រៀន (Pending)
+    // ============================================
+    if(isset($_POST['mark_pending'])) {
+        $class_id = mysqli_real_escape_string($conn, $_POST['class_id']);
+        $teaching_date = mysqli_real_escape_string($conn, $_POST['teaching_date']);
         
-        // ទាញយក total colleges
-        $sql_total_college = mysqli_query($conn, "SELECT COUNT(DISTINCT college) as total FROM students");
-        $total_colleges = mysqli_fetch_assoc($sql_total_college)['total'];
+        $update_sql = "UPDATE teaching_log SET 
+                       status = 'pending'
+                       WHERE teacher_id = '$logged_in_id' 
+                       AND class_id = '$class_id' 
+                       AND teaching_date = '$teaching_date'";
+        mysqli_query($conn, $update_sql);
         
-        // ទាញយក teacher's info for display in top bar
-        $teacher_display_name = "";
-        if($teacher_info) {
-            $teacher_display_name = $teacher_info['name'];
-        } else if(isset($_SESSION['name'])) {
-            $teacher_display_name = $_SESSION['name'];
-        }
-        
-        // Get all colleges/distinct departments from students table for dropdown/chart
-        $sql_colleges = mysqli_query($conn, "SELECT DISTINCT college FROM students WHERE college IS NOT NULL AND college != ''");
-        $colleges_list = [];
-        while($col = mysqli_fetch_assoc($sql_colleges)) {
-            $colleges_list[] = $col['college'];
-        }
-
+        echo "<script>window.location='forteacher.php';</script>";
+        exit();
+    }
 ?>
 
 <!DOCTYPE html>
@@ -67,7 +257,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <title>KRaksa Education Suite - Teacher Dashboard</title>
+    <title>Teacher Dashboard</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         a{ text-decoration: none; }
@@ -86,10 +276,34 @@
             z-index: 10;
             margin-left: -12px;
         }
-        .sidebar-header { padding: 28px 24px; border-bottom: 1px solid rgba(255, 255, 255, 0.1); margin-bottom: 24px; text-align: center; }
-        .sidebar-header img { width: 100px; height: 100px; border-radius: 50%; margin: auto; display: block; border: 4px solid white; object-fit: cover; }
-        .sidebar-header h1 { font-size: 1.8rem; font-weight: 700; color: white; margin-top: 10px; }
-        .sidebar-header p { font-size: 0.85rem; opacity: 0.8; }
+        .sidebar-header { padding: 25px 20px; border-bottom: 1px solid rgba(255, 255, 255, 0.1); margin-bottom: 20px; text-align: center; }
+        .sidebar-header .profile-img {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            margin: 0 auto 12px auto;
+            display: block;
+            border: 4px solid rgba(255, 255, 255, 0.8);
+            object-fit: cover;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+        .sidebar-header .teacher-name {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: white;
+            margin: 0;
+            line-height: 1.3;
+        }
+        .sidebar-header .teacher-dept {
+            font-size: 0.85rem;
+            opacity: 0.85;
+            margin: 4px 0 0 0;
+        }
+        .sidebar-header .teacher-subject {
+            font-size: 0.75rem;
+            opacity: 0.7;
+            margin: 2px 0 0 0;
+        }
         .nav-menu { flex: 1; padding: 0 16px; }
         .nav-item { display: flex; align-items: center; gap: 15px; padding: 12px 16px; margin-bottom: 8px; border-radius: 14px; cursor: pointer; transition: 0.3s; color: #cbd5e6; text-decoration: none; }
         .nav-item:hover { background: rgba(255, 255, 255, 0.1); color: white; }
@@ -100,237 +314,56 @@
         .top-bar { display: flex; justify-content: space-between; align-items: center; padding: 12px 24px; background: white; border-radius: 60px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-bottom: 28px; flex-wrap: wrap; gap: 15px; }
         .page-title h2 { font-size: 1.3rem; font-weight: 600; color: #1e293b; margin: 0; }
         
-        /* Search Container */
-        .search-container {
-            display: flex;
-            gap: 10px;
-            align-items: center;
-        }
+        .kpi-row { display: flex; flex-wrap: wrap; gap: 20px; margin-bottom: 32px; color:black; }
+        .kpi-card { border-radius: 20px; padding: 20px 24px; flex: 1; min-width: 200px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); transition: transform 0.3s ease; color:black; background: white; border-bottom: 8px solid; text-align: left; }
+        .kpi-card:hover { transform: translateY(-5px); }
+        .kpi-title { font-size: 14px; text-transform: uppercase; letter-spacing: 1px; opacity: 0.9; margin-bottom: 10px; font-weight: 500; color:black; }
+        .kpi-number { font-size: 30px; font-weight: bold; margin-bottom: 5px; }
         
-        /* Search Bar Styling */
-        .search-box { display: flex; gap: 5px; }
-        .search-box input { 
-            border-radius: 10px 0 0 10px; 
-            border: 1px solid #cbd5e1; 
-            padding: 8px 15px; 
-            font-size: 14px; 
-            width: 250px;
-            outline: none;
-            transition: all 0.3s ease;
-        }
-        .search-box input:focus {
-            border-color: #4f46e5;
-            box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.2);
-        }
-        .search-box button { 
-            border-radius: 0 10px 10px 0; 
-            background: #4f46e5; 
-            color: white; 
-            border: none; 
-            padding: 8px 18px; 
-            font-size: 14px; 
-            transition: 0.2s;
-            cursor: pointer;
-        }
-        .search-box button:hover { 
-            background: #3b35b3; 
-        }
+        .chart-box { background: white; padding: 25px; border-radius: 20px; box-shadow: 0 5px 20px rgba(0,0,0,0.05); margin-top: 20px; }
+        .stats-row { display: flex; gap: 20px; margin-top: 20px; }
+        .stats-col { flex: 1; }
+        canvas { max-height: 400px; width: 100%; }
         
-        /* Cancel Search Button */
-        .cancel-search-btn {
-            background: #ef4444;
-            color: white;
-            border: none;
-            padding: 8px 18px;
-            border-radius: 10px;
-            font-size: 14px;
-            cursor: pointer;
-            transition: 0.2s;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-        }
-        .cancel-search-btn:hover {
-            background: #dc2626;
-            transform: translateY(-2px);
-        }
+        .table { font-size: 13px; margin-top: 10px; }
+        .table th { background: #f1f5f9; font-weight: 600; }
         
-        /* Teacher Info Card */
-        .teacher-info-card {
+        .profile-card {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border-radius: 15px;
-            padding: 15px 25px;
-            margin-bottom: 20px;
+            border-radius: 20px;
+            padding: 25px 30px;
+            margin-bottom: 25px;
             color: white;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-            animation: slideDown 0.5s ease;
-        }
-        
-        /* College Stats Card */
-        .college-stats-card {
-            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-            border-radius: 15px;
-            padding: 15px 25px;
-            margin-bottom: 20px;
-            color: white;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-            animation: slideDown 0.5s ease;
-        }
-        
-        @keyframes slideDown {
-            from {
-                opacity: 0;
-                transform: translateY(-20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-        
-        .teacher-info-card h4, .college-stats-card h4 {
-            margin: 0 0 10px 0;
-            font-size: 1.1rem;
-            opacity: 0.9;
-        }
-        .teacher-info-card h3 {
-            margin: 0;
-            font-size: 1.5rem;
-            font-weight: 600;
-        }
-        .teacher-info-card .details, .college-stats-card .details {
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
             display: flex;
-            gap: 20px;
-            margin-top: 10px;
+            align-items: center;
+            gap: 30px;
             flex-wrap: wrap;
         }
-        .teacher-info-card .details span, .college-stats-card .details span {
-            font-size: 0.9rem;
-            opacity: 0.9;
-        }
-        .college-stats-card .stats-number {
-            font-size: 2rem;
-            font-weight: bold;
-            margin: 10px 0;
-        }
-        
-        .kpi-row { 
-            display: flex; 
-            flex-wrap: wrap; 
-            gap: 20px; 
-            margin-bottom: 32px; 
-            color:black;
-        }
-        .kpi-card { 
-            border-radius: 20px; 
-            padding: 20px 24px; 
-            flex: 1; 
-            min-width: 200px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
-            transition: transform 0.3s ease;
-            color:black;
-            background: white;
-            border-bottom: 8px solid;
-            text-align: left;
-        }
-        .kpi-card:hover {
-            transform: translateY(-5px);
-        }
-        
-        .kpi-title { 
-            font-size: 14px; 
-            text-transform: uppercase; 
-            letter-spacing: 1px; 
-            opacity: 0.9; 
-            margin-bottom: 10px; 
-            font-weight: 500; 
-            color:black;
-        }
-        .kpi-number { 
-            font-size: 30px; 
-            font-weight: bold; 
-            margin-bottom: 5px; 
-        }
-        
-        .chart-box {
-            background: white;
-            padding: 25px;
-            border-radius: 20px;
-            box-shadow: 0 5px 20px rgba(0,0,0,0.05);
-            margin-top: 20px;
-        }
-        
-        .stats-row {
+        .profile-card .avatar {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.2);
             display: flex;
-            gap: 20px;
-            margin-top: 20px;
+            align-items: center;
+            justify-content: center;
+            font-size: 35px;
+            border: 3px solid white;
         }
+        .profile-card .info h3 { margin: 0 0 5px 0; font-size: 1.5rem; }
+        .profile-card .info p { margin: 0; opacity: 0.9; font-size: 0.95rem; }
+        .profile-card .info .details { display: flex; gap: 25px; margin-top: 10px; flex-wrap: wrap; }
+        .profile-card .info .details span { font-size: 0.85rem; opacity: 0.85; }
         
-        .stats-col {
-            flex: 1;
-        }
-        
-        canvas {
-            max-height: 400px;
-            width: 100%;
-        }
-        
-        .dropdown-container{
-            margin-bottom:10px;
-        }
-        
-        .dropdown-btn{
-            display:flex;
-            justify-content:space-between;
-            align-items:center;
-            cursor:pointer;
-        }
-        
-        .dropdown-menus{
-            display:none;
-            padding-left:15px;
-            margin-top:5px;
-        }
-        
-        .sub-menu{
-            font-size:14px;
-            padding:10px 15px;
-            margin-bottom:5px;
-            background:rgba(88, 30, 248, 0.61);
-        }
-        
-        .sub-menu:hover{
-            background:rgba(110, 41, 238, 0.6);
-        }
-        
-        .dropdown-icon{
-            transition:0.3s;
-        }
-        
-        .table {
-            font-size: 13px;
-            margin-top: 10px;
-        }
-        .table th {
-            background: #f1f5f9;
+        .badge-status {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.75rem;
             font-weight: 600;
         }
-        
-        .alert {
-            padding: 12px 20px;
-            border-radius: 10px;
-            margin-bottom: 20px;
-        }
-        .alert-warning {
-            background: #fef3c7;
-            color: #92400e;
-            border-left: 4px solid #f59e0b;
-        }
-        .alert-info {
-            background: #dbeafe;
-            color: #1e40af;
-            border-left: 4px solid #3b82f6;
-        }
+        .badge-completed { background: #dcfce7; color: #166534; }
+        .badge-pending { background: #fef3c7; color: #92400e; }
         
         @media (max-width: 768px) {
             .sidebar { width: 80px; }
@@ -340,44 +373,59 @@
             .kpi-card { min-width: 150px; }
             .kpi-number { font-size: 24px; }
             .stats-row { flex-direction: column; }
-            .search-box input { width: 150px; }
+            .profile-card { flex-direction: column; text-align: center; }
+            .profile-card .info .details { justify-content: center; }
+            .sidebar-header .profile-img { width: 50px; height: 50px; }
+            .sidebar-header .teacher-name { display: none; }
+            .sidebar-header .teacher-dept { display: none; }
+            .sidebar-header .teacher-subject { display: none; }
         }
     </style>
 </head>
 <body>
 
+<script>
+    if(sessionStorage.getItem('login') == null){
+        window.location='login.php';
+    }
+</script>
+
 <div class="container">
     <div class="sidebar">
         <div class="sidebar-header">
-            <img src="https://i.pinimg.com/1200x/0c/34/fe/0c34fe7dd3df6d5a90703a3e871db5ef.jpg" alt="Logo" />
-            <h1>Teacher</h1>
-            <p>Education Suite</p>
+            <img src="<?php echo !empty($teacher_image) ? $teacher_image : $logged_in_teacher ; ?>" 
+                 alt="Profile" 
+                 class="profile-img" />
+            <h1 class="teacher-name"><?php echo htmlspecialchars($logged_in_teacher); ?></h1>
+            <p class="teacher-dept">
+                <i class="fas fa-graduation-cap"></i> <?php echo htmlspecialchars($teacher_department); ?>
+            </p>
+            <p class="teacher-subject">
+                <i class="fas fa-book"></i> <?php echo htmlspecialchars($teacher_subject); ?>
+            </p>
         </div>
-        <div class="nav-menu">
-            <a href="/" class="nav-item active" data-page="dashboard"><i class="fas fa-tachometer-alt"></i> <span>Main Dashboard</span></a>
-            
-            <div class="dropdown-container">
-                <div class="nav-item dropdown-btn" onclick="toggleDropdown()">
-                    <div>
-                        <i class="fas fa-user-graduate"></i>
-                        <span>Students</span>
-                    </div>
-                    <i class="fas fa-chevron-down dropdown-icon" id="dropdownIcon"></i>
-                </div>
-                <div class="dropdown-menus" id="studentDropdown">
-                    <a href="list_for_teacher.php" class="nav-item sub-menu"><i class="fas fa-users"></i><span>Student List</span></a>
-                    <a href="stuviwe.php" class="nav-item sub-menu"><i class="fas fa-eye"></i><span>Student View</span></a>
-                    <a href="score.php" class="nav-item sub-menu"><i class="fas fa-chart-line"></i><span>Student Scores</span></a>
-                </div>
-            </div>
-            
 
-            <a href="courses_tea.php" class="nav-item" data-page="courses"><i class="fas fa-graduation-cap"></i> <span>Department</span></a>
-            <a href="attendance_top_teacher.php" class="nav-item" data-page="attendance"><i class="fas fa-calendar-check"></i> <span>Attendance</span></a>
-            
+        <div class="nav-menu">
+            <a href="forteacher.php" class="nav-item active">
+                <i class="fas fa-tachometer-alt"></i>
+                <span>Main Dashboard</span>
+            </a>
+            <a href="class.php" class="nav-item">
+                <i class="fas fa-chalkboard-teacher"></i>
+                <span>Class</span>
+            </a>
+            <a href="Request.php" class="nav-item">
+                <i class="fas fa-file-signature"></i>
+                <span>Request</span>
+            </a>
+            <a href="settings_teacher.php" class="nav-item">
+                <i class="fas fa-cog"></i>
+                <span>Setting</span>
+            </a>
             <div class="nav-bottom">
                 <a href="logout.php" class="nav-item" style="padding-left:8px;">
-                    <i class="fas fa-sign-out-alt"></i> <span>Logout</span>
+                    <i class="fas fa-sign-out-alt"></i>
+                    <span>Logout</span>
                 </a>
             </div>
         </div>
@@ -385,124 +433,153 @@
 
     <div class="main-content">
         <div class="top-bar">
-            <div class="page-title"><h2 id="dynamicTitle">Teacher Dashboard Overview</h2></div>
+            <div class="page-title"><h2><i class="fas fa-chalkboard-teacher"></i> Teacher Dashboard</h2></div>
             <div class="date-time" id="currentDateTime"></div>
-            <!-- Search Bar with Cancel Button -->
-            <div class="search-container">
-                <form method="GET" action="" class="search-box" id="searchForm">
-                    <input type="text" name="search_id" id="searchInput" placeholder="Search Teacher by ID or Name..." value="<?php echo isset($_GET['search_id']) ? htmlspecialchars($_GET['search_id']) : ''; ?>">
-                    <button type="submit"><i class="fas fa-search"></i> Search</button>
-                </form>
-                <?php if($is_searching): ?>
-                <button type="button" class="cancel-search-btn" onclick="cancelSearch()">
-                    <i class="fas fa-times"></i> Cancel
-                </button>
+        </div>
+        
+        <!-- TEACHER PROFILE CARD -->
+        <div class="profile-card">
+            <div class="avatar">
+                <i class="fas fa-user-tie"></i>
+            </div>
+            <div class="info">
+                <h3><?php echo htmlspecialchars($logged_in_teacher); ?></h3>
+                <p><i class="fas fa-envelope"></i> <?php echo htmlspecialchars($teacher_email_db); ?></p>
+                <div class="details">
+                    <span><i class="fas fa-id-card"></i> ID: <?php echo htmlspecialchars($logged_in_id); ?></span>
+                    <span><i class="fas fa-phone"></i> <?php echo htmlspecialchars($teacher_phone); ?></span>
+                    <span><i class="fas fa-venus-mars"></i> <?php echo htmlspecialchars($teacher_gender); ?></span>
+                    <span><i class="fas fa-calendar"></i> DOB: <?php echo htmlspecialchars($teacher_dob); ?></span>
+                    <span><i class="fas fa-graduation-cap"></i> Dept: <?php echo htmlspecialchars($teacher_department); ?></span>
+                    <span><i class="fas fa-book"></i> Subject: <?php echo htmlspecialchars($teacher_subject); ?></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============================================ -->
+        <!-- TODAY'S CLASSES                              -->
+        <!-- ============================================ -->
+        <div class="kpi-row">
+            <div class="kpi-card" style="border-bottom-color: #10b981; width: 100%;">
+                <div class="kpi-title">
+                    <i class="fas fa-calendar-day"></i> 
+                    Today's Classes - <?php echo date('l, d F Y'); ?>
+                    <span class="badge bg-success ms-2">Completed: <?php echo $completed_count; ?></span>
+                    <span class="badge bg-warning ms-2">Pending: <?php echo $pending_count; ?></span>
+                </div>
+                <small>
+                    <i class="fas fa-user"></i> Teacher: <strong><?php echo htmlspecialchars($logged_in_teacher); ?></strong>
+                </small>
+                
+                <?php if(count($classes_today) > 0): ?>
+                    <div class="table-responsive mt-3">
+                        <table class="table table-bordered">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Class</th>
+                                    <th>Subject</th>
+                                    <th>Room</th>
+                                    <th>Time</th>
+                                    <th>Status</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php 
+                                $count = 1;
+                                foreach($classes_today as $class): 
+                                    $is_completed = ($class['teaching_status'] == 'completed');
+                                    $status_class = $is_completed ? 'badge-completed' : 'badge-pending';
+                                    $status_text = $is_completed ? '✅ Completed' : '⏳ Pending';
+                                ?>
+                                <tr>
+                                    <td><?php echo $count++; ?></td>
+                                    <td><strong><?php echo htmlspecialchars($class['class_name']); ?></strong></td>
+                                    <td><?php echo htmlspecialchars($class['subject']); ?></td>
+                                    <td><?php echo $class['room'] ? htmlspecialchars($class['room']) : '-'; ?></td>
+                                    <td>
+                                        <?php 
+                                        if($class['start_time']) {
+                                            echo date('h:i A', strtotime($class['start_time'])) . ' - ' . date('h:i A', strtotime($class['end_time']));
+                                        } else {
+                                            echo '-';
+                                        }
+                                        ?>
+                                    </td>
+                                    <td>
+                                        <span class="badge-status <?php echo $status_class; ?>">
+                                            <?php echo $status_text; ?>
+                                        </span>
+                                        <?php if($is_completed && !empty($class['teaching_notes'])): ?>
+                                            <br><small class="text-muted">📝 <?php echo htmlspecialchars($class['teaching_notes']); ?></small>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td>
+                                        <?php if(!$is_completed): ?>
+                                            <!-- ប៊ូតុងសម្គាល់ថាបានបង្រៀនហើយ -->
+                                            <button type="button" class="btn btn-sm btn-success" 
+                                                    data-bs-toggle="modal" 
+                                                    data-bs-target="#markTaughtModal"
+                                                    data-class-id="<?php echo $class['id']; ?>"
+                                                    data-class-name="<?php echo htmlspecialchars($class['class_name']); ?>"
+                                                    data-teaching-date="<?php echo $today; ?>">
+                                                <i class="fas fa-check"></i> Mark Taught
+                                            </button>
+                                        <?php else: ?>
+                                            <!-- ប៊ូតុងកំណត់ជា Pending វិញ -->
+                                            <form method="POST" style="display:inline;">
+                                                <input type="hidden" name="class_id" value="<?php echo $class['id']; ?>">
+                                                <input type="hidden" name="teaching_date" value="<?php echo $today; ?>">
+                                                <button type="submit" name="mark_pending" class="btn btn-sm btn-warning">
+                                                    <i class="fas fa-undo"></i> Undo
+                                                </button>
+                                            </form>
+                                        <?php endif; ?>
+                                    </td>
+                                </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                <?php else: ?>
+                    <div class="text-center py-4">
+                        <i class="fas fa-calendar-check" style="font-size: 36px; color: #cbd5e1;"></i>
+                        <p class="text-muted mt-2">No classes scheduled for today.</p>
+                        <p class="text-muted">Enjoy your day off! 🎉</p>
+                    </div>
                 <?php endif; ?>
             </div>
         </div>
-        
-        <!-- Teacher Information Display Card -->
-        <?php if($teacher_info): ?>
-        <div class="teacher-info-card">
-            <h4><i class="fas fa-chalkboard-teacher"></i> Teacher Information</h4>
-            <h3><?php echo htmlspecialchars($teacher_info['name']); ?></h3>
-            <div class="details">
-                <span><i class="fas fa-id-card"></i> ID: <?php echo htmlspecialchars($teacher_info['id']); ?></span>
-                <span><i class="fas fa-envelope"></i> Email: <?php echo htmlspecialchars($teacher_info['email'] ?? 'N/A'); ?></span>
-                <span><i class="fas fa-phone"></i> Phone: <?php echo htmlspecialchars($teacher_info['phone'] ?? 'N/A'); ?></span>
-                <span><i class="fas fa-graduation-cap"></i> College/Department: <?php echo htmlspecialchars($teacher_info['department'] ?? 'IT'); ?></span>
-                <span><i class="fas fa-calendar"></i> Join Date: <?php echo htmlspecialchars($teacher_info['join_date'] ?? 'N/A'); ?></span>
+
+        <!-- KPI CARDS -->
+        <div class="kpi-row">
+            <div class="kpi-card" style="border-bottom-color: #4f46e5;">
+                <div class="kpi-title"><i class="fas fa-users"></i> Students in <?php echo strtoupper(htmlspecialchars($teacher_department)); ?> Dept</div>
+                <div class="kpi-number"><?php echo $total_students_by_dept; ?></div>
+                <small>Students from <?php echo htmlspecialchars($teacher_department); ?> department</small>
+            </div>
+            <div class="kpi-card" style="border-bottom-color: #10b981;">
+                <div class="kpi-title"><i class="fas fa-book"></i> Total Colleges</div>
+                <div class="kpi-number"><?php echo $total_colleges; ?></div>
+                <small>All colleges in system</small>
+            </div>
+            <div class="kpi-card" style="border-bottom-color: #f59e0b;">
+                <div class="kpi-title"><i class="fas fa-chalkboard-teacher"></i> Total Teachers</div>
+                <div class="kpi-number"><?php echo $total_teachers; ?></div>
+                <small>Active teachers in system</small>
             </div>
         </div>
         
-        <!-- College/Department Student Statistics -->
-        <div class="college-stats-card">
-            <h4><i class="fas fa-university"></i> College Statistics: <?php echo strtoupper(htmlspecialchars($college_name)); ?></h4>
-            <div class="stats-number"><?php echo $total_students_by_college; ?></div>
-            <div class="stats-label">Total Students in <?php echo htmlspecialchars($college_name); ?> College</div>
-            <small><i class="fas fa-info-circle"></i> From students table where college = '<?php echo htmlspecialchars($college_name); ?>'</small>
-        </div>
-        <?php elseif($is_searching && !$teacher_info): ?>
-        <div class="alert alert-warning">
-            <i class="fas fa-exclamation-triangle"></i> No teacher found with ID/Name: <strong><?php echo htmlspecialchars($search_id); ?></strong>
-        </div>
-        <?php endif; ?>
-
-        <!-- KPI Cards Row 1 - FIXED: Show different stats based on search state -->
+        <!-- CLASS SCHEDULE -->
         <div class="kpi-row">
-            <?php if($is_searching && $teacher_info): ?>
-                <!-- When searching and teacher found - Show college specific stats -->
-                <div class="kpi-card" style="border-bottom-color: #4f46e5;">
-                    <div class="kpi-title"><i class="fas fa-users"></i> Students in <?php echo strtoupper(htmlspecialchars($college_name)); ?> College</div>
-                    <div class="kpi-number"><?php echo $total_students_by_college; ?></div>
-                    <small>Students from college: <?php echo htmlspecialchars($college_name); ?></small>
-                </div>
-                <div class="kpi-card" style="border-bottom-color: #10b981;">
-                    <div class="kpi-title"><i class="fas fa-book"></i> Total Colleges</div>
-                    <div class="kpi-number"><?php echo $total_colleges; ?></div>
-                    <small>All colleges in system</small>
-                </div>
-                <div class="kpi-card" style="border-bottom-color: #f59e0b;">
-                    <div class="kpi-title"><i class="fas fa-chalkboard-teacher"></i> Today's Classes</div>
-                    <div class="kpi-number" id="teachersCount">0</div>
-                    <small>Active teachers today</small>
-                </div>
-            <?php elseif($is_searching && !$teacher_info): ?>
-                <!-- When searching and teacher NOT found - Show total stats with warning -->
-                <div class="kpi-card" style="border-bottom-color: #4f46e5;">
-                    <div class="kpi-title"><i class="fas fa-users"></i> Total Students (All)</div>
-                    <div class="kpi-number"><?php echo $total_students; ?></div>
-                    <small>All students in system</small>
-                </div>
-                <div class="kpi-card" style="border-bottom-color: #10b981;">
-                    <div class="kpi-title"><i class="fas fa-book"></i> Total Colleges</div>
-                    <div class="kpi-number"><?php echo $total_colleges; ?></div>
-                    <small>All colleges</small>
-                </div>
-                <div class="kpi-card" style="border-bottom-color: #f59e0b;">
-                    <div class="kpi-title"><i class="fas fa-chalkboard-teacher"></i> Today's Classes</div>
-                    <div class="kpi-number" id="teachersCount">0</div>
-                    <small>Active teachers today</small>
-                </div>
-            <?php else: ?>
-                <!-- Default view (no search) - Show total stats -->
-                <div class="kpi-card" style="border-bottom-color: #4f46e5;">
-                    <div class="kpi-title"><i class="fas fa-users"></i> Total Students (All)</div>
-                    <div class="kpi-number"><?php echo $total_students; ?></div>
-                    <small>All students in system</small>
-                </div>
-                <div class="kpi-card" style="border-bottom-color: #10b981;">
-                    <div class="kpi-title"><i class="fas fa-book"></i> Total Colleges</div>
-                    <div class="kpi-number"><?php echo $total_colleges; ?></div>
-                    <small>All colleges</small>
-                </div>
-                <div class="kpi-card" style="border-bottom-color: #f59e0b;">
-                    <div class="kpi-title"><i class="fas fa-chalkboard-teacher"></i> Today's Classes</div>
-                    <div class="kpi-number" id="teachersCount">0</div>
-                    <small>Active teachers today</small>
-                </div>
-            <?php endif; ?>
-        </div>
-        
-        <!-- Class Schedule Card - FIXED: Show schedule based on search -->
-        <div class="kpi-row">
-            <div class="kpi-card" style="border-bottom-color: #ef553b; width: 100%;">
+            <div class="kpi-card" style="border-bottom-color: #8b5cf6; width: 100%;">
                 <div class="kpi-title">
                     <i class="fas fa-calendar-alt"></i> 
-                    <?php if($is_searching && $teacher_info): ?>
-                        Class Schedule for <?php echo htmlspecialchars($teacher_info['department']); ?> Department
-                    <?php else: ?>
-                        All Class Schedules
-                    <?php endif; ?>
+                    Class Schedule for <?php echo htmlspecialchars($teacher_department); ?> Department
                 </div>
                 <small>
-                    <?php if($is_searching && $teacher_info): ?>
-                        <i class="fas fa-filter"></i> Showing schedule for department: <?php echo htmlspecialchars($teacher_info['department']); ?>
-                    <?php elseif($is_searching && !$teacher_info): ?>
-                        <i class="fas fa-exclamation-triangle"></i> No teacher found. Showing all schedules.
-                    <?php else: ?>
-                        <i class="fas fa-info-circle"></i> Showing all schedules (Search for a teacher to filter by department)
-                    <?php endif; ?>
+                    <i class="fas fa-user"></i> Teacher: <strong><?php echo htmlspecialchars($logged_in_teacher); ?></strong>
                 </small>
                 <div class="table-responsive">
                     <table class="table table-bordered">
@@ -521,16 +598,8 @@
                         </thead>
                         <tbody>
                         <?php
-                        // If teacher has department, show schedule for that department, otherwise show all
-                        $schedule_query = "SELECT * FROM schedule_class";
-                        if($teacher_department) {
-                            $schedule_query .= " WHERE department = '$teacher_department'";
-                        }
-                        $schedule_query .= " ORDER BY date DESC, time_star ASC LIMIT 10";
-                        
-                        $sql = mysqli_query($conn, $schedule_query);
-                        if(mysqli_num_rows($sql) > 0){
-                            while($row = mysqli_fetch_assoc($sql)){
+                        if(mysqli_num_rows($schedule_result) > 0){
+                            while($row = mysqli_fetch_assoc($schedule_result)){
                         ?>
                         <tr>
                             <td><?= htmlspecialchars($row['time_star'] ?? ''); ?></td>
@@ -546,7 +615,7 @@
                         <?php
                             }
                         } else {
-                            echo '<tr><td colspan="9" class="text-center">No schedule found</td></tr>';
+                            echo '<tr><td colspan="9" class="text-center">No schedule found for your department</td></tr>';
                         }
                         ?>
                         </tbody>
@@ -555,17 +624,16 @@
             </div>
         </div>
         
-        <!-- Student Progress and Top Performing Students - FIXED: Show data based on search -->
+        <!-- STUDENT PROGRESS & TOP STUDENTS -->
         <div class="kpi-row">
-            <div class="kpi-card" style="border-bottom-color: #eb668c;">
+            <div class="kpi-card" style="border-bottom-color: #eb668c; flex: 1;">
                 <div class="kpi-title">
                     <i class="fas fa-user-graduate"></i> 
-                    <?php if($is_searching && $teacher_info): ?>
-                        Student Progress (<?php echo htmlspecialchars($teacher_info['department']); ?> Department)
-                    <?php else: ?>
-                        Student Progress (All Departments)
-                    <?php endif; ?>
+                    Student Progress (<?php echo htmlspecialchars($teacher_subject); ?>)
                 </div>
+                <small>
+                    <i class="fas fa-chalkboard-teacher"></i> Subject taught by: <strong><?php echo htmlspecialchars($logged_in_teacher); ?></strong>
+                </small>
                 <div class="table-responsive">
                     <table class="table table-bordered">
                         <thead>
@@ -579,33 +647,20 @@
                         </thead>
                         <tbody>
                         <?php
-                        // Modified query to join with students table for department filtering
-                        if($is_searching && $teacher_info) {
-                            $progress_query = "SELECT s.*, st.college 
-                                             FROM scores s 
-                                             JOIN students st ON s.name = st.name 
-                                             WHERE st.college = '$teacher_department' 
-                                             ORDER BY s.score DESC 
-                                             LIMIT 5";
-                        } else {
-                            $progress_query = "SELECT s.*, '' as college FROM scores s ORDER BY s.score DESC LIMIT 5";
-                        }
-                        
-                        $sql = mysqli_query($conn, $progress_query);
-                        if(mysqli_num_rows($sql) > 0){
-                            while($row = mysqli_fetch_assoc($sql)){
+                        if(mysqli_num_rows($progress_result) > 0){
+                            while($row = mysqli_fetch_assoc($progress_result)){
                         ?>
                         <tr>
                             <td><?= htmlspecialchars($row['name'] ?? ''); ?></td>
                             <td><?= htmlspecialchars($row['subject'] ?? ''); ?></td>
                             <td><?= htmlspecialchars($row['score'] ?? ''); ?></td>
                             <td><?= htmlspecialchars($row['Grade'] ?? ''); ?></td>
-                            <td><?= $is_searching && $teacher_info ? htmlspecialchars($row['college'] ?? '') : 'All'; ?></td>
+                            <td><?= htmlspecialchars($row['college'] ?? ''); ?></td>
                         </tr>
                         <?php
                             }
                         } else {
-                            echo '<tr><td colspan="5" class="text-center">No data found</td></tr>';
+                            echo '<tr><td colspan="5" class="text-center">No student data found for your subject</td></tr>';
                         }
                         ?>
                         </tbody>
@@ -613,15 +668,14 @@
                 </div>
             </div>
             
-            <div class="kpi-card" style="border-bottom-color: #40189D;">
+            <div class="kpi-card" style="border-bottom-color: #40189D; flex: 1;">
                 <div class="kpi-title">
                     <i class="fas fa-trophy"></i> 
-                    <?php if($is_searching && $teacher_info): ?>
-                        Top Students (<?php echo htmlspecialchars($teacher_info['department']); ?> Department)
-                    <?php else: ?>
-                        Top Students (All Departments)
-                    <?php endif; ?>
+                    Top Students (<?php echo htmlspecialchars($teacher_subject); ?>)
                 </div>
+                <small>
+                    <i class="fas fa-star"></i> Students with A or B grades
+                </small>
                 <div class="table-responsive">
                     <table class="table table-bordered">
                         <thead>
@@ -635,33 +689,20 @@
                         </thead>
                         <tbody>
                         <?php
-                        if($is_searching && $teacher_info) {
-                            $top_query = "SELECT s.*, st.college 
-                                         FROM scores s 
-                                         JOIN students st ON s.name = st.name 
-                                         WHERE s.Grade IN ('A','B') 
-                                         AND st.college = '$teacher_department' 
-                                         ORDER BY s.score DESC 
-                                         LIMIT 5";
-                        } else {
-                            $top_query = "SELECT s.*, '' as college FROM scores s WHERE s.Grade IN ('A','B') ORDER BY s.score DESC LIMIT 5";
-                        }
-                        
-                        $sql = mysqli_query($conn, $top_query);
-                        if(mysqli_num_rows($sql) > 0){
-                            while($row = mysqli_fetch_assoc($sql)){
+                        if(mysqli_num_rows($top_result) > 0){
+                            while($row = mysqli_fetch_assoc($top_result)){
                         ?>
                         <tr>
                             <td><?= htmlspecialchars($row['name'] ?? ''); ?></td>
                             <td><?= htmlspecialchars($row['subject'] ?? ''); ?></td>
                             <td><?= htmlspecialchars($row['score'] ?? ''); ?></td>
                             <td><?= htmlspecialchars($row['Grade'] ?? ''); ?></td>
-                            <td><?= $is_searching && $teacher_info ? htmlspecialchars($row['college'] ?? '') : 'All'; ?></td>
+                            <td><?= htmlspecialchars($row['college'] ?? ''); ?></td>
                         </tr>
                         <?php
                             }
                         } else {
-                            echo '<tr><td colspan="5" class="text-center">No data found</td></tr>';
+                            echo '<tr><td colspan="5" class="text-center">No top students found for your subject</td></tr>';
                         }
                         ?>
                         </tbody>
@@ -670,53 +711,46 @@
             </div>
         </div>
         
-        <!-- CHARTS ROW -->
-        <div class="stats-row">
-            <div class="stats-col">
-                <div class="chart-box">
-                    <h4><i class="fas fa-chart-bar"></i> Overall Statistics</h4>
-                    <canvas id="myChart" height="300"></canvas>
-                </div>
-            </div>
-            <div class="stats-col">
-                <div class="chart-box">
-                    <h4><i class="fas fa-chart-pie"></i> Students by College</h4>
-                    <canvas id="collegeChart" height="300"></canvas>
-                </div>
-            </div>
-        </div>
+      
         
-        <!-- Additional Chart Row -->
-        <div class="stats-row">
-            <div class="stats-col">
-                <div class="chart-box">
-                    <h4><i class="fas fa-chart-line"></i> Student Status Distribution</h4>
-                    <canvas id="statusChart" height="300"></canvas>
-                </div>
+        
+        
+    </div>
+</div>
+
+<!-- ============================================ -->
+<!-- MARK TAUGHT MODAL                            -->
+<!-- ============================================ -->
+<div class="modal fade" id="markTaughtModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-check-circle text-success"></i> Mark Class as Taught</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
+            <form method="POST">
+                <div class="modal-body">
+                    <p>Are you sure you have taught this class?</p>
+                    <p><strong>Class:</strong> <span id="modalClassName"></span></p>
+                    <input type="hidden" name="class_id" id="modalClassId">
+                    <input type="hidden" name="teaching_date" id="modalTeachingDate">
+                    <div class="mb-3">
+                        <label class="form-label">Notes (Optional)</label>
+                        <textarea class="form-control" name="notes" rows="3" placeholder="Add any notes about today's class..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" name="mark_taught" class="btn btn-success">
+                        <i class="fas fa-check"></i> Yes, Mark as Taught
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
 
 <script>
-function toggleDropdown(){
-    let menu = document.getElementById("studentDropdown");
-    let icon = document.getElementById("dropdownIcon");
-    if(menu.style.display === "block"){
-        menu.style.display = "none";
-        icon.style.transform = "rotate(0deg)";
-    }else{
-        menu.style.display = "block";
-        icon.style.transform = "rotate(180deg)";
-    }
-}
-
-// Cancel search function - redirect to same page without search parameter
-function cancelSearch() {
-    window.location.href = window.location.pathname;
-}
-
-// Update date and time
 function updateDateTime() {
     const now = new Date();
     const formatted = now.toLocaleString('en-US', { 
@@ -733,152 +767,26 @@ function updateDateTime() {
 updateDateTime();
 setInterval(updateDateTime, 1000);
 
-// Allow Enter key to submit search
-document.getElementById('searchInput')?.addEventListener('keypress', function(e) {
-    if (e.key === 'Enter') {
-        document.getElementById('searchForm').submit();
+// ============================================
+// Modal Script for Mark Taught
+// ============================================
+document.addEventListener('DOMContentLoaded', function() {
+    const markTaughtModal = document.getElementById('markTaughtModal');
+    if(markTaughtModal) {
+        markTaughtModal.addEventListener('show.bs.modal', function(event) {
+            const button = event.relatedTarget;
+            const classId = button.getAttribute('data-class-id');
+            const className = button.getAttribute('data-class-name');
+            const teachingDate = button.getAttribute('data-teaching-date');
+            
+            document.getElementById('modalClassId').value = classId;
+            document.getElementById('modalClassName').textContent = className;
+            document.getElementById('modalTeachingDate').value = teachingDate;
+        });
     }
 });
 
-// Charts
-document.addEventListener('DOMContentLoaded', function() {
-    const myChartCanvas = document.getElementById('myChart');
-    const collegeChartCanvas = document.getElementById('collegeChart');
-    const statusChartCanvas = document.getElementById('statusChart');
-    
-    if (!myChartCanvas || !collegeChartCanvas) {
-        console.error("Canvas elements not found!");
-        return;
-    }
-    
-    myChartCanvas.style.opacity = '0.5';
-    collegeChartCanvas.style.opacity = '0.5';
-    if(statusChartCanvas) statusChartCanvas.style.opacity = '0.5';
-    
-    fetch("chart_data_teacher.php")
-    .then(res => {
-        if (!res.ok) {
-            throw new Error('Network response was not ok: ' + res.status);
-        }
-        return res.json();
-    })
-    .then(data => {
-        console.log("Data received:", data);
-        
-        const setText = (id, value) => {
-            const el = document.getElementById(id);
-            if (el) el.innerText = value || 0;
-        };
-        
-        setText("teachersCount", data.teachers);
-        
-        if (window.mainChart) {
-            try { window.mainChart.destroy(); } catch(e) {}
-            window.mainChart = null;
-        }
-        if (window.collegeChart) {
-            try { window.collegeChart.destroy(); } catch(e) {}
-            window.collegeChart = null;
-        }
-        if (window.statusChart) {
-            try { window.statusChart.destroy(); } catch(e) {}
-            window.statusChart = null;
-        }
-        
-        // Chart 1: Bar Chart
-        const ctxMain = myChartCanvas.getContext('2d');
-        window.mainChart = new Chart(ctxMain, {
-            type: 'bar',
-            data: {
-                labels: ["Students", "Teachers", "Majors"],
-                datasets: [{
-                    label: "Total Count",
-                    data: [data.students || 0, data.teachers || 0, data.courses || 0],
-                    backgroundColor: ["#4f46e5", "#f59e0b", "#10b981"],
-                    borderRadius: 10,
-                    borderWidth: 0
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: true,
-                plugins: {
-                    legend: { position: 'top' },
-                    tooltip: { callbacks: { label: function(context) { 
-                        return `${context.dataset.label}: ${context.parsed.y}`; 
-                    } } }
-                },
-                scales: { y: { beginAtZero: true, ticks: { stepSize: 1, precision: 0 } } }
-            }
-        });
-        
-        // Chart 2: Pie Chart - Students by College
-        const ctxCollege = collegeChartCanvas.getContext('2d');
-        window.collegeChart = new Chart(ctxCollege, {
-            type: 'pie',
-            data: {
-                labels: ["IT", "Civil Engineering", "Electronics", "Business", "Electrical"],
-                datasets: [{
-                    data: [data.it || 0, data.civil || 0, data.electronics || 0, data.business || 0, data.electrical || 0],
-                    backgroundColor: ['#4f46e5', '#8b5cf6', '#ec489a', '#f59e0b', '#10b981'],
-                    borderWidth: 2,
-                    borderColor: '#fff'
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: true,
-                plugins: {
-                    legend: { position: 'bottom' },
-                    tooltip: { callbacks: { label: function(context) {
-                        const label = context.label || '';
-                        const value = context.parsed || 0;
-                        const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                        const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
-                        return `${label}: ${value} (${percentage}%)`;
-                    } } }
-                }
-            }
-        });
-        
-        // Chart 3: Status Chart
-        if (statusChartCanvas) {
-            const ctxStatus = statusChartCanvas.getContext('2d');
-            window.statusChart = new Chart(ctxStatus, {
-                type: 'doughnut',
-                data: {
-                    labels: ["Active", "Inactive", "Transfer", "Old", "Dropped"],
-                    datasets: [{
-                        data: [data.Active || 0, data.Inactive || 0, data.Transfer || 0, data.old || 0, data.Dropped || 0],
-                        backgroundColor: ['#10b981', '#ef4444', '#f59e0b', '#8b5cf6', '#6b7280'],
-                        borderWidth: 2,
-                        borderColor: '#fff'
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: true,
-                    plugins: { legend: { position: 'bottom' } }
-                }
-            });
-        }
-        
-        myChartCanvas.style.opacity = '1';
-        collegeChartCanvas.style.opacity = '1';
-        if(statusChartCanvas) statusChartCanvas.style.opacity = '1';
-        
-        console.log("All charts created successfully!");
-    })
-    .catch(err => {
-        console.error("Error loading data:", err);
-        const ctxMain = myChartCanvas.getContext('2d');
-        ctxMain.font = '16px Arial';
-        ctxMain.fillStyle = 'red';
-        ctxMain.fillText('Error loading data: ' + err.message, 50, 150);
-        myChartCanvas.style.opacity = '1';
-        collegeChartCanvas.style.opacity = '1';
-    });
-});
+
 </script>
 </body>
 </html>
