@@ -11,11 +11,9 @@ if (!isset($_SESSION['student_logged_in']) || $_SESSION['student_logged_in'] !==
     exit();
 }
 
-// ============================================
-// ✅ ប្រសិនបើបានបង្ហាញ Splash រួចហើយ បញ្ជូនទៅ Dashboard ត្រង់
-// ============================================
+
 if (isset($_SESSION['splash_shown']) && $_SESSION['splash_shown'] === true) {
-    // បញ្ជូនទៅ Dashboard តាម Role
+   
     $role = $_SESSION['role'] ?? 'student';
     $dashboard_urls = [
         'admin' => 'index.php',
@@ -27,7 +25,7 @@ if (isset($_SESSION['splash_shown']) && $_SESSION['splash_shown'] === true) {
     exit();
 }
 
-// ✅ កំណត់ថាបានបង្ហាញ Splash ហើយ
+
 $_SESSION['splash_shown'] = true;
 
 // ទាញទិន្នន័យអ្នកប្រើពី Session
@@ -35,9 +33,9 @@ $student_name = $_SESSION['name'] ?? 'Student';
 $student_id = $_SESSION['id'] ?? '';
 $student_email = $_SESSION['email'] ?? '';
 $student_role = $_SESSION['role'] ?? 'student';
-$student_image = $_SESSION['student_image'] ?? 'https://i.pinimg.com/1200x/0c/3b/a6/0c3ba6df9e70c306dc610829b6018578.jpg';
+// $student_image = $_SESSION['student_image'] ?? 'https://i.pinimg.com/1200x/0c/3b/a6/0c3ba6df9e70c306dc610829b6018578.jpg';
 
-// កំណត់ URL សម្រាប់ប្តូរទៅ Dashboard តាម Role
+
 $dashboard_urls = [
     'admin' => 'index.php',
     'teacher' => 'forteacher.php',
@@ -45,35 +43,9 @@ $dashboard_urls = [
 ];
 $dashboard_url = $dashboard_urls[$student_role] ?? 'forstudent.php';
 
-// ពេលវេលាបង្ហាញ Splash (គិតជាមីលីវិនាទី)
+
 $splash_duration = 6000; // 3 វិនាទី
 
-// ទាញទិន្នន័យបន្ថែមពី Database
-
-
-// គណនាពិន្ទុមធ្យម
-$avg_score = 0;
-$total_subjects = 0;
-$attendance_percent = 0;
-
-if ($student_role == 'student') {
-    $score_query = "SELECT AVG(score) as avg_score, COUNT(DISTINCT subject) as subjects FROM scores WHERE student_id = '$student_id'";
-    $score_result = mysqli_query($conn, $score_query);
-    if ($score_result) {
-        $score_data = mysqli_fetch_assoc($score_result);
-        $avg_score = round($score_data['avg_score'] ?? 0, 2);
-        $total_subjects = $score_data['subjects'] ?? 0;
-    }
-
-    $attendance_query = "SELECT COUNT(*) as total, SUM(CASE WHEN status = 'present' THEN 1 ELSE 0 END) as present FROM attendance WHERE student_id = '$student_id'";
-    $attendance_result = mysqli_query($conn, $attendance_query);
-    if ($attendance_result) {
-        $attendance_data = mysqli_fetch_assoc($attendance_result);
-        $total_attendance = $attendance_data['total'] ?? 0;
-        $present_days = $attendance_data['present'] ?? 0;
-        $attendance_percent = $total_attendance > 0 ? round(($present_days / $total_attendance) * 100, 2) : 0;
-    }
-}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -348,7 +320,7 @@ if ($student_role == 'student') {
         .particle:nth-child(12) { left: 75%; animation-delay: 2s; animation-duration: 18s; }
         .typing-container{
           position: absolute;
-          top: 50%;
+          top: 10%;
           left: 50%;
           transform: translate(-50%, -50%);
           z-index: 999;
@@ -461,7 +433,7 @@ if ($student_role == 'student') {
     
     <!-- Profile -->
     <div class="splash-profile">
-        <img src="<?php echo htmlspecialchars($student_image); ?>" alt="Profile" />
+        <!-- <img src="<?php echo htmlspecialchars($student_image); ?>" alt="Profile" /> -->
         <div class="name"><?php echo htmlspecialchars($student_name); ?></div>
         <span class="role-badge <?php echo $student_role; ?>">
             <i class="fas fa-<?php echo $student_role == 'admin' ? 'crown' : ($student_role == 'teacher' ? 'chalkboard' : 'book'); ?>"></i>
@@ -507,7 +479,7 @@ if ($student_role == 'student') {
 
 <!-- REDIRECT SCRIPT -->
 <script>
-const word = "Welcome To My Dashboard";
+const word = "Welcome To E-Education";
 let index = 0;
 
 function typing() {

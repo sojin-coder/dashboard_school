@@ -23,12 +23,12 @@ if (!empty($subject)) {
     $base_sql .= " AND t.subject LIKE '%$subject%'";
 }
 
-// Get total subjects count (ignoring filters for this KPI)
+// Get total subjects count
 $total_subjects_query = "SELECT COUNT(DISTINCT subject) as total_subjects FROM teachers WHERE subject IS NOT NULL AND subject != ''";
 $total_subjects_result = mysqli_query($conn, $total_subjects_query);
 $total_subjects = mysqli_fetch_assoc($total_subjects_result)['total_subjects'] ?? 0;
 
-// Query for summary statistics (single query)
+// Query for summary statistics
 $summary_sql = "SELECT 
                 COUNT(DISTINCT t.id) as total_teachers,
                 SUM(CASE WHEN t.gender = 'Male' THEN 1 ELSE 0 END) as male_count,
@@ -55,10 +55,13 @@ $on_leave_count = $stats['on_leave_count'] ?? 0;
 $total_courses_taught = $stats['total_courses_taught'] ?? 0;
 $filtered_subjects = $stats['filtered_subjects'] ?? 0;
 
-// Query for detailed teacher data
+// Query for detailed teacher data with teaching log
 $sql = "SELECT t.*, 
         COUNT(DISTINCT c.id) as total_courses,
-        GROUP_CONCAT(DISTINCT c.name SEPARATOR ', ') as course_names
+        GROUP_CONCAT(DISTINCT c.name SEPARATOR ', ') as course_names,
+        (SELECT COUNT(*) FROM teaching_log tl WHERE tl.teacher_id = t.id) as total_teaching_sessions,
+        (SELECT COUNT(*) FROM teaching_log tl WHERE tl.teacher_id = t.id AND tl.status = 'completed') as completed_sessions,
+        (SELECT COUNT(*) FROM teaching_log tl WHERE tl.teacher_id = t.id AND tl.status = 'pending') as pending_sessions
         $base_sql
         GROUP BY t.id 
         ORDER BY t.id DESC";
@@ -68,7 +71,7 @@ if (!$result) {
     die("Query failed: " . mysqli_error($conn));
 }
 
-// Get unique subjects for filter (excluding null/empty)
+// Get unique subjects for filter
 $subjects_list = mysqli_query($conn, "SELECT DISTINCT subject FROM teachers WHERE subject IS NOT NULL AND subject != '' ORDER BY subject");
 ?>
 
@@ -136,6 +139,91 @@ $subjects_list = mysqli_query($conn, "SELECT DISTINCT subject FROM teachers WHER
         .btn-print:hover, .btn-excel:hover, .btn-pdf:hover { transform: translateY(-2px); opacity: 0.9; }
         
         .teacher-img { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; }
+        
+        /* Action buttons style */
+        .action-btn {
+            padding: 4px 10px;
+            margin: 2px;
+            border-radius: 20px;
+            font-size: 12px;
+            border: none;
+            transition: all 0.2s;
+        }
+        .action-btn:hover {
+            transform: scale(1.05);
+        }
+        .btn-view-activity {
+            background: #4f46e5;
+            color: white;
+        }
+        .btn-view-activity:hover {
+            background: #4338ca;
+            color: white;
+        }
+        .btn-view-schedule {
+            background: #0ea5e9;
+            color: white;
+        }
+        .btn-view-schedule:hover {
+            background: #0284c7;
+            color: white;
+        }
+        .btn-view-classes {
+            background: #10b981;
+            color: white;
+        }
+        .btn-view-classes:hover {
+            background: #059669;
+            color: white;
+        }
+        
+        /* Activity log styles */
+        .activity-timeline {
+            position: relative;
+            padding-left: 30px;
+        }
+        .activity-timeline::before {
+            content: '';
+            position: absolute;
+            left: 10px;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: #e5e7eb;
+        }
+        .activity-item {
+            position: relative;
+            padding: 12px 0;
+            border-bottom: 1px solid #f3f4f6;
+        }
+        .activity-item::before {
+            content: '';
+            position: absolute;
+            left: -24px;
+            top: 16px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #4f46e5;
+            border: 2px solid white;
+            box-shadow: 0 0 0 3px #4f46e5;
+        }
+        .activity-item.completed::before {
+            background: #10b981;
+            box-shadow: 0 0 0 3px #10b981;
+        }
+        .activity-item.pending::before {
+            background: #f59e0b;
+            box-shadow: 0 0 0 3px #f59e0b;
+        }
+        .activity-item .activity-time {
+            font-size: 12px;
+            color: #6b7280;
+        }
+        .activity-item .activity-status {
+            font-size: 12px;
+            font-weight: 600;
+        }
         
         @media print {
             .sidebar, .top-bar, .filter-section, .btn-print, .btn-excel, .btn-pdf, .dataTables_filter, .dataTables_length, .dataTables_paginate {
@@ -259,7 +347,7 @@ $subjects_list = mysqli_query($conn, "SELECT DISTINCT subject FROM teachers WHER
                 <small>Total Teachers: <?php echo $total_teachers; ?></small>
             </div>
             
-            <!-- KPI Summary Cards Row 1 -->
+            <!-- KPI Summary Cards -->
             <div class="kpi-row">
                 <div class="kpi-card">
                     <div class="kpi-title">Total Teachers</div>
@@ -280,10 +368,9 @@ $subjects_list = mysqli_query($conn, "SELECT DISTINCT subject FROM teachers WHER
                     <div class="kpi-number"><?php echo $female_count; ?></div>
                     <small><?php echo $total_teachers > 0 ? round(($female_count/$total_teachers)*100, 1) : 0; ?>% of total</small>
                 </div>
-                
             </div>
             
-            <!-- KPI Summary Cards Row 2 - Status -->
+            <!-- KPI Summary Cards Row 2 -->
             <div class="kpi-row">
                 <div class="kpi-card">
                     <div class="kpi-title">Total Courses</div>
@@ -314,7 +401,6 @@ $subjects_list = mysqli_query($conn, "SELECT DISTINCT subject FROM teachers WHER
                         <span class="student-stat-value"><?php echo $on_leave_count; ?></span>
                     </div>
                 </div>
-
             </div>
             
             <!-- Filter Section -->
@@ -366,7 +452,7 @@ $subjects_list = mysqli_query($conn, "SELECT DISTINCT subject FROM teachers WHER
                 </form>
             </div>
             
-            <!-- Report Table -->
+            <!-- Report Table with Actions -->
             <div class="report-container">
                 <h5><i class="fas fa-table"></i> Teachers Details</h5>
                 <hr>
@@ -381,10 +467,9 @@ $subjects_list = mysqli_query($conn, "SELECT DISTINCT subject FROM teachers WHER
                                 <th>Email</th>
                                 <th>Phone</th>
                                 <th>Subject</th>
-                                <th>Courses Teaching</th>
-                                <th>Address</th>
-                                <th>Joined Date</th>
+                                <th>Classes</th>
                                 <th>Status</th>
+                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -412,15 +497,15 @@ $subjects_list = mysqli_query($conn, "SELECT DISTINCT subject FROM teachers WHER
                                         <td><?php echo htmlspecialchars($row['phone']); ?></td>
                                         <td><span class="badge bg-primary"><?php echo htmlspecialchars($row['subject']); ?></span></td>
                                         <td>
-                                            <span class="badge bg-success"><?php echo $row['total_courses']; ?> Courses</span><br>
-                                            <small class="text-muted"><?php echo htmlspecialchars(substr($row['course_names'] ?? '', 0, 50)); ?></small>
-                                            <?php if(strlen($row['course_names'] ?? '') > 50): ?>...<?php endif; ?>
+                                            <span class="badge bg-success"><?php echo $row['total_courses']; ?> Courses</span>
+                                            <br>
+                                            <small class="text-muted">Sessions: <?php echo $row['total_teaching_sessions'] ?? 0; ?></small>
+                                            <br>
+                                            <small class="text-success">✓ <?php echo $row['completed_sessions'] ?? 0; ?></small>
+                                            <small class="text-warning">⏳ <?php echo $row['pending_sessions'] ?? 0; ?></small>
                                         </td>
-                                        <td><?php echo htmlspecialchars(substr($row['address'] ?? '', 0, 50)); ?></td>
-                                        <td><?php echo date('d-m-Y', strtotime($row['created_at'])); ?></td>
                                         <td>
                                             <?php 
-                                            // Handle both 'Status' and 'status' column names
                                             $status_field = isset($row['Status']) ? $row['Status'] : (isset($row['status']) ? $row['status'] : '');
                                             $status = strtolower(trim($status_field));
                                             $badgeClass = '';
@@ -446,17 +531,113 @@ $subjects_list = mysqli_query($conn, "SELECT DISTINCT subject FROM teachers WHER
                                             ?>
                                             <span class="<?php echo $badgeClass; ?>"><?php echo $icon . ucfirst($status); ?></span>
                                         </td>
+                                        <td>
+                                            <!-- View Activity Button -->
+                                            <button type="button" class="action-btn btn-view-activity" 
+                                                    onclick="viewTeacherActivity(<?php echo $row['id']; ?>, '<?php echo htmlspecialchars($row['name']); ?>')">
+                                                <i class="fas fa-history"></i> Activity
+                                            </button>
+                                            
+                                            <!-- View Schedule Button -->
+                                            <button type="button" class="action-btn btn-view-schedule" 
+                                                    onclick="viewTeacherSchedule(<?php echo $row['id']; ?>, '<?php echo htmlspecialchars($row['name']); ?>')">
+                                                <i class="fas fa-calendar-alt"></i> Schedule
+                                            </button>
+                                            
+                                            <!-- View Classes Button -->
+                                            <button type="button" class="action-btn btn-view-classes" 
+                                                    onclick="viewTeacherClasses(<?php echo $row['id']; ?>, '<?php echo htmlspecialchars($row['name']); ?>')">
+                                                <i class="fas fa-chalkboard"></i> Classes
+                                            </button>
+                                        </td>
                                     </tr>
                                 <?php endwhile; ?>
                             <?php else: ?>
                                 <tr>
-                                    <td colspan="11" class="text-center">
+                                    <td colspan="10" class="text-center">
                                         <i class="fas fa-info-circle"></i> No teachers found
                                     </td>
                                 </tr>
                             <?php endif; ?>
                         </tbody>
                     </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- ============================================ -->
+    <!-- ACTIVITY LOG MODAL                           -->
+    <!-- ============================================ -->
+    <div class="modal fade" id="activityModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header" style="background: #4f46e5; color: white;">
+                    <h5 class="modal-title"><i class="fas fa-history"></i> Teacher Activity Log</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="activityContent">
+                        <div class="text-center py-4">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <p class="mt-2">Loading activity data...</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- ============================================ -->
+    <!-- SCHEDULE MODAL                               -->
+    <!-- ============================================ -->
+    <div class="modal fade" id="scheduleModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header" style="background: #0ea5e9; color: white;">
+                    <h5 class="modal-title"><i class="fas fa-calendar-alt"></i> Teacher Schedule</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="scheduleContent">
+                    <div class="text-center py-4">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2">Loading schedule data...</p>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- ============================================ -->
+    <!-- CLASSES MODAL                                -->
+    <!-- ============================================ -->
+    <div class="modal fade" id="classesModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header" style="background: #10b981; color: white;">
+                    <h5 class="modal-title"><i class="fas fa-chalkboard"></i> Teacher Classes</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="classesContent">
+                    <div class="text-center py-4">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2">Loading class data...</p>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                 </div>
             </div>
         </div>
@@ -475,7 +656,6 @@ $subjects_list = mysqli_query($conn, "SELECT DISTINCT subject FROM teachers WHER
                 menu.style.display = "none";
                 icon.style.transform = "rotate(0deg)";
             } else {
-                // Close report dropdown first
                 let reportMenu = document.getElementById("reportDropdownMenu");
                 let reportIcon = document.getElementById("reportDropdownIcon");
                 if(reportMenu) {
@@ -496,7 +676,6 @@ $subjects_list = mysqli_query($conn, "SELECT DISTINCT subject FROM teachers WHER
                 menu.style.display = "none";
                 icon.style.transform = "rotate(0deg)";
             } else {
-                // Close student dropdown first
                 let studentMenu = document.getElementById("studentDropdown");
                 let studentIcon = document.getElementById("dropdownIcon");
                 if(studentMenu) {
@@ -510,7 +689,6 @@ $subjects_list = mysqli_query($conn, "SELECT DISTINCT subject FROM teachers WHER
         
         // Close dropdowns when clicking outside
         document.addEventListener('click', function(event) {
-            // Check student dropdown
             const studentContainer = document.querySelector('.dropdown-container:first-child');
             if(studentContainer && !studentContainer.contains(event.target)) {
                 const studentMenu = document.getElementById("studentDropdown");
@@ -521,7 +699,6 @@ $subjects_list = mysqli_query($conn, "SELECT DISTINCT subject FROM teachers WHER
                 }
             }
             
-            // Check report dropdown
             const reportContainers = document.querySelectorAll('.dropdown-container');
             if(reportContainers.length > 1) {
                 const reportContainer = reportContainers[1];
@@ -535,6 +712,263 @@ $subjects_list = mysqli_query($conn, "SELECT DISTINCT subject FROM teachers WHER
                 }
             }
         });
+        
+        // View Teacher Activity
+        function viewTeacherActivity(teacherId, teacherName) {
+            const modal = new bootstrap.Modal(document.getElementById('activityModal'));
+            const content = document.getElementById('activityContent');
+            
+            // Show loading
+            content.innerHTML = `
+                <div class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2">Loading activity for ${teacherName}...</p>
+                </div>
+            `;
+            
+            modal.show();
+            
+            // Fetch activity data via AJAX
+            $.ajax({
+                url: 'get_teacher_activity.php',
+                type: 'GET',
+                data: { teacher_id: teacherId },
+                dataType: 'json',
+                success: function(data) {
+                    if(data.success && data.activities.length > 0) {
+                        let html = `
+                            <div class="mb-3">
+                                <h6><i class="fas fa-user"></i> Teacher: <strong>${teacherName}</strong></h6>
+                                <p><i class="fas fa-chart-simple"></i> Total Sessions: ${data.total_sessions}</p>
+                            </div>
+                            <div class="activity-timeline">
+                        `;
+                        
+                        data.activities.forEach(function(activity) {
+                            const statusClass = activity.status === 'completed' ? 'completed' : 'pending';
+                            const statusIcon = activity.status === 'completed' ? '✅' : '⏳';
+                            const statusText = activity.status === 'completed' ? 'Completed' : 'Pending';
+                            
+                            html += `
+                                <div class="activity-item ${statusClass}">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div>
+                                            <strong>${activity.class_name}</strong>
+                                            <br>
+                                            <small class="text-muted">
+                                                <i class="fas fa-book"></i> ${activity.subject}
+                                            </small>
+                                            <br>
+                                            <small class="text-muted">
+                                                <i class="fas fa-calendar-day"></i> ${activity.teaching_date}
+                                            </small>
+                                            ${activity.notes ? `<br><small class="text-muted"><i class="fas fa-comment"></i> ${activity.notes}</small>` : ''}
+                                        </div>
+                                        <span class="activity-status badge ${activity.status === 'completed' ? 'bg-success' : 'bg-warning'}">
+                                            ${statusIcon} ${statusText}
+                                        </span>
+                                    </div>
+                                    <div class="activity-time">
+                                        <i class="fas fa-clock"></i> ${activity.updated_at}
+                                    </div>
+                                </div>
+                            `;
+                        });
+                        
+                        html += `</div>`;
+                        content.innerHTML = html;
+                    } else {
+                        content.innerHTML = `
+                            <div class="text-center py-4">
+                                <i class="fas fa-inbox" style="font-size: 48px; color: #d1d5db;"></i>
+                                <p class="mt-2">No teaching activities found for ${teacherName}</p>
+                                <small class="text-muted">The teacher hasn't logged any teaching sessions yet.</small>
+                            </div>
+                        `;
+                    }
+                },
+                error: function() {
+                    content.innerHTML = `
+                        <div class="text-center py-4 text-danger">
+                            <i class="fas fa-exclamation-circle" style="font-size: 48px;"></i>
+                            <p class="mt-2">Failed to load activity data. Please try again.</p>
+                        </div>
+                    `;
+                }
+            });
+        }
+        
+        // View Teacher Schedule
+       // View Teacher Schedule
+function viewTeacherSchedule(teacherId, teacherName) {
+    const modal = new bootstrap.Modal(document.getElementById('scheduleModal'));
+    const content = document.getElementById('scheduleContent');
+    
+    content.innerHTML = `
+        <div class="text-center py-4">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2">Loading schedule for ${teacherName}...</p>
+        </div>
+    `;
+    
+    modal.show();
+    
+    $.ajax({
+        url: 'get_teacher_schedule.php',
+        type: 'GET',
+        data: { teacher_id: teacherId },
+        dataType: 'json',
+        success: function(data) {
+            if(data.success && data.schedule.length > 0) {
+                let html = `
+                    <h6><i class="fas fa-user"></i> Teacher: <strong>${teacherName}</strong></h6>
+                    <p><i class="fas fa-calendar-alt"></i> Total Classes: ${data.schedule.length}</p>
+                    <div class="table-responsive mt-3">
+                        <table class="table table-bordered table-striped">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Date</th>
+                                    <th>Day</th>
+                                    <th>Subject</th>
+                                    <th>Class</th>
+                                    <th>Start Time</th>
+                                    <th>End Time</th>
+                                    <th>Department</th>
+                                    <th>Shift</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                `;
+                
+                let count = 1;
+                data.schedule.forEach(function(item) {
+                    html += `
+                        <tr>
+                            <td>${count++}</td>
+                            <td><span class="badge bg-primary">${item.date_formatted || item.date}</span></td>
+                            <td>${item.day_of_week || '-'}</td>
+                            <td><strong>${item.subject}</strong></td>
+                            <td>${item.class || '-'}</td>
+                            <td>${item.time_star || '-'}</td>
+                            <td>${item.time_end || '-'}</td>
+                            <td>${item.department || '-'}</td>
+                            <td>${item.shift || '-'}</td>
+                        </tr>
+                    `;
+                });
+                
+                html += `
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+                content.innerHTML = html;
+            } else {
+                content.innerHTML = `
+                    <div class="text-center py-4">
+                        <i class="fas fa-calendar-times" style="font-size: 48px; color: #d1d5db;"></i>
+                        <p class="mt-2">No schedule found for ${teacherName}</p>
+                        <small class="text-muted">This teacher hasn't been assigned to any classes yet.</small>
+                    </div>
+                `;
+            }
+        },
+        error: function() {
+            content.innerHTML = `
+                <div class="text-center py-4 text-danger">
+                    <i class="fas fa-exclamation-circle" style="font-size: 48px;"></i>
+                    <p class="mt-2">Failed to load schedule data. Please try again.</p>
+                </div>
+            `;
+        }
+    });
+}
+        
+        // View Teacher Classes
+        function viewTeacherClasses(teacherId, teacherName) {
+            const modal = new bootstrap.Modal(document.getElementById('classesModal'));
+            const content = document.getElementById('classesContent');
+            
+            content.innerHTML = `
+                <div class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2">Loading classes for ${teacherName}...</p>
+                </div>
+            `;
+            
+            modal.show();
+            
+            $.ajax({
+                url: 'get_teacher_classes.php',
+                type: 'GET',
+                data: { teacher_id: teacherId },
+                dataType: 'json',
+                success: function(data) {
+                    if(data.success && data.classes.length > 0) {
+                        let html = `
+                            <h6><i class="fas fa-user"></i> Teacher: <strong>${teacherName}</strong></h6>
+                            <div class="table-responsive mt-3">
+                                <table class="table table-bordered table-striped">
+                                    <thead>
+                                        <tr>
+                                            <th>Class Name</th>
+                                            <th>Subject</th>
+                                            <th>Room</th>
+                                            <th>Status</th>
+                                            <th>Schedule Day</th>
+                                            <th>Time</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                        `;
+                        
+                        data.classes.forEach(function(cls) {
+                            const statusBadge = cls.status === 'active' ? 'success' : 'secondary';
+                            html += `
+                                <tr>
+                                    <td><strong>${cls.class_name}</strong></td>
+                                    <td>${cls.subject}</td>
+                                    <td>${cls.room || '-'}</td>
+                                    <td><span class="badge bg-${statusBadge}">${cls.status}</span></td>
+                                    <td>${cls.schedule_day || '-'}</td>
+                                    <td>${cls.start_time || '-'} - ${cls.end_time || '-'}</td>
+                                </tr>
+                            `;
+                        });
+                        
+                        html += `
+                                    </tbody>
+                                </table>
+                            </div>
+                        `;
+                        content.innerHTML = html;
+                    } else {
+                        content.innerHTML = `
+                            <div class="text-center py-4">
+                                <i class="fas fa-chalkboard" style="font-size: 48px; color: #d1d5db;"></i>
+                                <p class="mt-2">No classes found for ${teacherName}</p>
+                                <small class="text-muted">This teacher hasn't been assigned to any classes yet.</small>
+                            </div>
+                        `;
+                    }
+                },
+                error: function() {
+                    content.innerHTML = `
+                        <div class="text-center py-4 text-danger">
+                            <i class="fas fa-exclamation-circle" style="font-size: 48px;"></i>
+                            <p class="mt-2">Failed to load class data. Please try again.</p>
+                        </div>
+                    `;
+                }
+            });
+        }
         
         // Export to Excel
         function exportToExcel() {
@@ -568,8 +1002,6 @@ $subjects_list = mysqli_query($conn, "SELECT DISTINCT subject FROM teachers WHER
                 responsive: true
             });
         });
-        
-       
     </script>
 </body>
 </html>

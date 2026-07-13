@@ -396,7 +396,8 @@ if(!isset($_SESSION['id'])){
                 </div>
             </div>
             <a href="Employees.php" class="nav-item" data-page="employees"><i class="fas fa-user-friends"></i> <span>Employees</span></a>
-            <a href="StudentAttendance.php" class="nav-item" data-page="attendance"><i class="fas fa-calendar-check"></i> <span>Attendance</span></a>
+            <!-- <a href="StudentAttendance.php" class="nav-item" data-page="attendance"><i class="fas fa-calendar-check"></i> <span>Attendance</span></a> -->
+            <a href="attendance_admin.php" class="nav-item" data-page="attendance"><i class="fas fa-calendar-check"></i> <span>Attendance</span></a>
             
             <div class="nav-bottom">
                 <a href="logout.php" class="nav-item" style="padding-left:8px;">
@@ -529,60 +530,70 @@ if(!isset($_SESSION['id'])){
             </div>
         </div>
           <!-- Class Schedule Card -->
-        <div class="kpi-row">
-            <div class="kpi-card" style="border-bottom-color: #f34b2e; width: 100%;">
-                <div class="kpi-title"><i class="fas fa-calendar-alt"></i> Class Schedule</div>
-                <small>Today's schedule</small>
-                <div class="table-responsive table-container">
-                    <table class="table table-bordered mb-0">
-                        <thead>
-                            <tr>
-                                <th>Time Start</th>
-                                <th>Time End</th>
-                                <th>Subject</th>
-                                <th>Department</th>
-                                <th>Classroom</th>
-                                <th>Shift</th>
-                                <th>Year</th>
-                                <th>Semester</th>
-                                <th>Date</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                       <?php
-                             $today = date("Y-m-d");                             
-
-                             $stmt = $conn->prepare("SELECT * FROM schedule_class WHERE date = ?");
-                             $stmt->bind_param("s", $today);
-                             $stmt->execute();                             
-
-                             $sql = $stmt->get_result();                             
-
-                             if($sql->num_rows > 0){
-                                 while($row = $sql->fetch_assoc()){
-                             ?>
-                             <tr>
-                                 <td><?= htmlspecialchars($row['time_star']); ?></td>
-                                 <td><?= htmlspecialchars($row['time_end']); ?></td>
-                                 <td><?= htmlspecialchars($row['subject']); ?></td>
-                                 <td><?= htmlspecialchars($row['department']); ?></td>
-                                 <td><?= htmlspecialchars($row['class']); ?></td>
-                                 <td><?= htmlspecialchars($row['shift']); ?></td>
-                                 <td><?= htmlspecialchars($row['year']); ?></td>
-                                 <td><?= htmlspecialchars($row['semester']); ?></td>
-                                 <td><?= htmlspecialchars($row['date']); ?></td>
-                             </tr>
-                             <?php
-                                 }
-                             }else{
-                                 echo '<tr><td colspan="9" class="text-center">No schedule found</td></tr>';
-                             }
-                         ?>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
+       <div class="kpi-row">
+                    <div class="kpi-card" style="border-bottom-color: #f34b2e; width: 100%;">
+                        <div class="kpi-title">
+                            <i class="fas fa-calendar-alt"></i> Class Schedule
+                        </div>
+                        <small>Today's schedule</small>
+                
+                        <?php
+                            $today = date("Y-m-d");
+                
+                            $stmt = $conn->prepare("SELECT * FROM teacher_classes WHERE date = ?");
+                            $stmt->bind_param("s", $today);
+                            $stmt->execute();
+                
+                            $sql = $stmt->get_result();
+                        ?>
+                
+                        <?php if ($sql->num_rows > 0): ?>
+                
+                            <div class="table-responsive table-container">
+                                <table class="table table-bordered mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>teacher_name</th>
+                                            <th>class_name</th>
+                                            <th>subject</th>
+                                            <th>room</th>
+                                            <th>year</th>
+                                            <th>start_time</th>
+                                            <th>end_time</th>
+                                            <th>semester</th>
+                                            <th>shift</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php while ($row = $sql->fetch_assoc()): ?>
+                                            <tr>
+                                                <td><?= htmlspecialchars($row['teacher_name']); ?></td>
+                                                <td><?= htmlspecialchars($row['class_name']); ?></td>
+                                                <td><?= htmlspecialchars($row['subject']); ?></td>
+                                                <td><?= htmlspecialchars($row['room']); ?></td>
+                                                <td><?= htmlspecialchars($row['year']); ?></td>
+                                                <td><?= htmlspecialchars($row['start_time']); ?></td>
+                                                <td><?= htmlspecialchars($row['end_time']); ?></td>
+                                                <td><?= htmlspecialchars($row['semester']); ?></td>
+                                                <td><?= htmlspecialchars($row['shift']); ?></td>
+                                            </tr>
+                                        <?php endwhile; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                
+                        <?php else: ?>
+                
+                            <div class="text-center py-4">
+                                <i class="fas fa-calendar-check" style="font-size:36px; color:#cbd5e1;"></i>
+                                <p class="text-muted mt-2 mb-1">No classes scheduled for today.</p>
+                                <p class="text-muted">Enjoy your day off! 🎉</p>
+                            </div>
+                
+                        <?php endif; ?>
+                
+                    </div>
+       </div>
       
         <!-- CHARTS ROW -->
         <div class="stats-row">
@@ -624,6 +635,7 @@ if(!isset($_SESSION['id'])){
                 icon.style.transform = "rotate(180deg)";
             }
         }
+        
         function toggleReportDropdown() {
             let menu = document.getElementById("reportDropdownMenu");
             let icon = document.getElementById("reportDropdownIcon");

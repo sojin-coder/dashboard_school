@@ -1,172 +1,172 @@
 <?php
-if (session_status() === PHP_SESSION_NONE) {
-    // session_start();
-}
-
-include "db.php";
-
-// ការពារ user ប្តូរ link
-if(!isset($_SESSION['id'])){
-    header("Location: login.php");
-    exit();
-}
-
-// ពិនិត្យមើលតួនាទី
-if($_SESSION['role'] != 'teacher'){
-    header("Location: index.php");
-    exit();
-}
-
-// ============================================
-// យកអ៊ីមែលពី Session
-// ============================================
-$logged_in_email = $_SESSION['email'] ?? '';
-
-// យកព័ត៌មានគ្រូពីតារាង teachers
-$sql_teacher_info = "SELECT * FROM teachers WHERE email = '$logged_in_email'";
-$result_teacher_info = mysqli_query($conn, $sql_teacher_info);
-$teacher_info = mysqli_fetch_assoc($result_teacher_info);
-
-if(!$teacher_info) {
-    echo "<script>alert('Teacher not found!'); window.location='logout.php';</script>";
-    exit();
-}
-
-// ============================================
-// យកទិន្នន័យគ្រូ
-// ============================================
-$teacher_id = $teacher_info['id'];
-$logged_in_teacher = $teacher_info['name'];
-$logged_in_id = $teacher_info['id'];
-$teacher_department = $teacher_info['department'] ?? 'IT';
-$teacher_subject = $teacher_info['subject'] ?? '';
-$teacher_phone = $teacher_info['phone'] ?? '';
-$teacher_email_db = $teacher_info['email'] ?? '';
-$teacher_gender = $teacher_info['gender'] ?? '';
-$teacher_dob = $teacher_info['dob'] ?? '';
-$teacher_salary = $teacher_info['salary'] ?? 0;
-$teacher_address = $teacher_info['address'] ?? '';
-$teacher_image = $teacher_info['image'] ?? '';
-
-$message = '';
-$error = '';
-
-// ============================================
-// ដំណើរការពេលអ្នកប្រើចុចប៊ូតុង Update
-// ============================================
-if(isset($_POST['update_profile'])) {
-    $name = mysqli_real_escape_string($conn, $_POST['name']);
-    $phone = mysqli_real_escape_string($conn, $_POST['phone']);
-    $gender = mysqli_real_escape_string($conn, $_POST['gender']);
-    $dob = mysqli_real_escape_string($conn, $_POST['dob']);
-    $address = mysqli_real_escape_string($conn, $_POST['address']);
-    $subject = mysqli_real_escape_string($conn, $_POST['subject']);
-    $department = mysqli_real_escape_string($conn, $_POST['department']);
-    
-    // ដំណើរការរូបភាព
-    $image_path = $teacher_image;
-    if(isset($_FILES['image']) && $_FILES['image']['error'] == 0) {
-        $allowed = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
-        $filename = $_FILES['image']['name'];
-        $file_ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
-        $file_size = $_FILES['image']['size'];
-        $file_tmp = $_FILES['image']['tmp_name'];
+        include "db.php";
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
+        }
         
-        if(in_array($file_ext, $allowed)) {
-            if($file_size <= 5000000) { // 5MB
-                $new_filename = 'teacher_' . $teacher_id . '_' . time() . '.' . $file_ext;
-                $upload_path = 'uploads/teachers/' . $new_filename;
+        
+        // ការពារ user ប្តូរ link
+        if(!isset($_SESSION['id'])){
+            header("Location: login.php");
+            exit();
+        }
+        
+        // ពិនិត្យមើលតួនាទី
+        if($_SESSION['role'] != 'teacher'){
+            header("Location: index.php");
+            exit();
+        }
+        
+        // ============================================
+        // យកអ៊ីមែលពី Session
+        // ============================================
+        $logged_in_email = $_SESSION['email'] ?? '';
+        
+        // យកព័ត៌មានគ្រូពីតារាង teachers
+        $sql_teacher_info = "SELECT * FROM teachers WHERE email = '$logged_in_email'";
+        $result_teacher_info = mysqli_query($conn, $sql_teacher_info);
+        $teacher_info = mysqli_fetch_assoc($result_teacher_info);
+        
+        if(!$teacher_info) {
+            echo "<script>alert('Teacher not found!'); window.location='logout.php';</script>";
+            exit();
+        }
+        
+        // ============================================
+        // យកទិន្នន័យគ្រូ
+        // ============================================
+        $teacher_id = $teacher_info['id'];
+        $logged_in_teacher = $teacher_info['name'];
+        $logged_in_id = $teacher_info['id'];
+        $teacher_department = $teacher_info['department'] ?? 'IT';
+        $teacher_subject = $teacher_info['subject'] ?? '';
+        $teacher_phone = $teacher_info['phone'] ?? '';
+        $teacher_email_db = $teacher_info['email'] ?? '';
+        $teacher_gender = $teacher_info['gender'] ?? '';
+        $teacher_dob = $teacher_info['dob'] ?? '';
+        $teacher_salary = $teacher_info['salary'] ?? 0;
+        $teacher_address = $teacher_info['address'] ?? '';
+        $teacher_image = $teacher_info['image'] ?? '';
+        
+        $message = '';
+        $error = '';
+        
+        // ============================================
+        // ដំណើរការពេលអ្នកប្រើចុចប៊ូតុង Update
+        // ============================================
+        if(isset($_POST['update_profile'])) {
+            $name = mysqli_real_escape_string($conn, $_POST['name']);
+            $phone = mysqli_real_escape_string($conn, $_POST['phone']);
+            $gender = mysqli_real_escape_string($conn, $_POST['gender']);
+            $dob = mysqli_real_escape_string($conn, $_POST['dob']);
+            $address = mysqli_real_escape_string($conn, $_POST['address']);
+            $subject = mysqli_real_escape_string($conn, $_POST['subject']);
+            $department = mysqli_real_escape_string($conn, $_POST['department']);
+            
+            // ដំណើរការរូបភាព
+            $image_path = $teacher_image;
+            if(isset($_FILES['image']) && $_FILES['image']['error'] == 0) {
+                $allowed = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+                $filename = $_FILES['image']['name'];
+                $file_ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+                $file_size = $_FILES['image']['size'];
+                $file_tmp = $_FILES['image']['tmp_name'];
                 
-                // បង្កើត folder បើមិនទាន់មាន
-                if(!is_dir('uploads/teachers')) {
-                    mkdir('uploads/teachers', 0777, true);
-                }
-                
-                if(move_uploaded_file($file_tmp, $upload_path)) {
-                    // លុបរូបភាពចាស់
-                    if(!empty($teacher_image) && file_exists($teacher_image)) {
-                        unlink($teacher_image);
+                if(in_array($file_ext, $allowed)) {
+                    if($file_size <= 5000000) { // 5MB
+                        $new_filename = 'teacher_' . $teacher_id . '_' . time() . '.' . $file_ext;
+                        $upload_path = 'uploads/teachers/' . $new_filename;
+                        
+                        // បង្កើត folder បើមិនទាន់មាន
+                        if(!is_dir('uploads/teachers')) {
+                            mkdir('uploads/teachers', 0777, true);
+                        }
+                        
+                        if(move_uploaded_file($file_tmp, $upload_path)) {
+                            // លុបរូបភាពចាស់
+                            if(!empty($teacher_image) && file_exists($teacher_image)) {
+                                unlink($teacher_image);
+                            }
+                            $image_path = $upload_path;
+                        } else {
+                            $error = "Failed to upload image!";
+                        }
+                    } else {
+                        $error = "Image size too large! Max 5MB.";
                     }
-                    $image_path = $upload_path;
                 } else {
-                    $error = "Failed to upload image!";
+                    $error = "Invalid image format! Allowed: JPG, PNG, GIF, WEBP";
                 }
-            } else {
-                $error = "Image size too large! Max 5MB.";
             }
-        } else {
-            $error = "Invalid image format! Allowed: JPG, PNG, GIF, WEBP";
-        }
-    }
-    
-    // បើគ្មានកំហុស ធ្វើការកែប្រែ
-    if(empty($error)) {
-        $update_sql = "UPDATE teachers SET 
-            name = '$name',
-            phone = '$phone',
-            gender = '$gender',
-            dob = '$dob',
-            address = '$address',
-            subject = '$subject',
-            department = '$department',
-            image = '$image_path'
-            WHERE id = $teacher_id";
-        
-        if(mysqli_query($conn, $update_sql)) {
-            $message = "✅ Profile updated successfully!";
             
-            // ធ្វើបច្ចុប្បន្នភាពអថេរ
-            $logged_in_teacher = $name;
-            $teacher_phone = $phone;
-            $teacher_gender = $gender;
-            $teacher_dob = $dob;
-            $teacher_address = $address;
-            $teacher_subject = $subject;
-            $teacher_department = $department;
-            $teacher_image = $image_path;
-            
-            // ធ្វើបច្ចុប្បន្នភាព Session name
-            $_SESSION['name'] = $name;
-        } else {
-            $error = "❌ Error updating profile: " . mysqli_error($conn);
-        }
-    }
-}
-
-// ============================================
-// ដំណើរការផ្លាស់ប្តូរពាក្យសម្ងាត់
-// ============================================
-if(isset($_POST['change_password'])) {
-    $current_password = $_POST['current_password'];
-    $new_password = $_POST['new_password'];
-    $confirm_password = $_POST['confirm_password'];
-    
-    // ពិនិត្យពាក្យសម្ងាត់បច្ចុប្បន្ន
-    $check_sql = "SELECT password FROM logins WHERE email = '$logged_in_email'";
-    $check_result = mysqli_query($conn, $check_sql);
-    $check_row = mysqli_fetch_assoc($check_result);
-    
-    if(password_verify($current_password, $check_row['password'])) {
-        if($new_password == $confirm_password) {
-            if(strlen($new_password) >= 6) {
-                $hashed_password = password_hash($new_password, PASSWORD_DEFAULT);
-                $update_pass_sql = "UPDATE logins SET password = '$hashed_password' WHERE email = '$logged_in_email'";
+            // បើគ្មានកំហុស ធ្វើការកែប្រែ
+            if(empty($error)) {
+                $update_sql = "UPDATE teachers SET 
+                    name = '$name',
+                    phone = '$phone',
+                    gender = '$gender',
+                    dob = '$dob',
+                    address = '$address',
+                    subject = '$subject',
+                    department = '$department',
+                    image = '$image_path'
+                    WHERE id = $teacher_id";
                 
-                if(mysqli_query($conn, $update_pass_sql)) {
-                    $message = "✅ Password changed successfully!";
+                if(mysqli_query($conn, $update_sql)) {
+                    $message = "✅ Profile updated successfully!";
+                    
+                    // ធ្វើបច្ចុប្បន្នភាពអថេរ
+                    $logged_in_teacher = $name;
+                    $teacher_phone = $phone;
+                    $teacher_gender = $gender;
+                    $teacher_dob = $dob;
+                    $teacher_address = $address;
+                    $teacher_subject = $subject;
+                    $teacher_department = $department;
+                    $teacher_image = $image_path;
+                    
+                    // ធ្វើបច្ចុប្បន្នភាព Session name
+                    $_SESSION['name'] = $name;
                 } else {
-                    $error = "❌ Error changing password: " . mysqli_error($conn);
+                    $error = "❌ Error updating profile: " . mysqli_error($conn);
+                }
+            }
+        }
+        
+        // ============================================
+        // ដំណើរការផ្លាស់ប្តូរពាក្យសម្ងាត់
+        // ============================================
+        if(isset($_POST['change_password'])) {
+            $current_password = $_POST['current_password'];
+            $new_password = $_POST['new_password'];
+            $confirm_password = $_POST['confirm_password'];
+            
+            // ពិនិត្យពាក្យសម្ងាត់បច្ចុប្បន្ន
+            $check_sql = "SELECT password FROM logins WHERE email = '$logged_in_email'";
+            $check_result = mysqli_query($conn, $check_sql);
+            $check_row = mysqli_fetch_assoc($check_result);
+            
+            if(password_verify($current_password, $check_row['password'])) {
+                if($new_password == $confirm_password) {
+                    if(strlen($new_password) >= 6) {
+                        $hashed_password = password_hash($new_password, PASSWORD_DEFAULT);
+                        $update_pass_sql = "UPDATE logins SET password = '$hashed_password' WHERE email = '$logged_in_email'";
+                        
+                        if(mysqli_query($conn, $update_pass_sql)) {
+                            $message = "✅ Password changed successfully!";
+                        } else {
+                            $error = "❌ Error changing password: " . mysqli_error($conn);
+                        }
+                    } else {
+                        $error = "❌ New password must be at least 6 characters!";
+                    }
+                } else {
+                    $error = "❌ Passwords do not match!";
                 }
             } else {
-                $error = "❌ New password must be at least 6 characters!";
+                $error = "❌ Current password is incorrect!";
             }
-        } else {
-            $error = "❌ Passwords do not match!";
         }
-    } else {
-        $error = "❌ Current password is incorrect!";
-    }
-}
 ?>
 
 <!DOCTYPE html>
@@ -287,6 +287,10 @@ if(isset($_POST['change_password'])) {
             <a href="forteacher.php" class="nav-item"><i class="fas fa-tachometer-alt"></i> <span>Main Dashboard</span></a>
             <a href="class.php" class="nav-item"><i class="fas fa-chalkboard-teacher"></i> <span>Class</span></a>
             <a href="Request.php" class="nav-item"><i class="fas fa-file-signature"></i> <span>Request</span></a>
+            <a href="substitute.php" class="nav-item">
+                <i class="fas fa-people-arrows"></i>
+                <span>Substitute Class</span>
+            </a>
             <a href="settings_teacher.php" class="nav-item active"><i class="fas fa-cog"></i> <span>Setting</span></a>
             <div class="nav-bottom">
                 <a href="logout.php" class="nav-item" style="padding-left:8px;">

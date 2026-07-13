@@ -553,13 +553,28 @@
                     <a href="Request_student.php" class="nav-item sub-menu"><i class="fas fa-users"></i><span>Student </span></a>
                    
                 </div>
+                 <div class="dropdown-container">
+                <div class="nav-item dropdown-btn" onclick="toggleReportDropdown()">
+                    <div>
+                        <i class="fas fa-file-pdf"></i> 
+                        <span class="m-2">Report</span>
+                    </div>
+                    <i class="fas fa-chevron-down dropdown-icon" id="reportDropdownIcon"></i>
+                </div>
+                <div class="dropdown-menus" id="reportDropdownMenu">
+                    <a href="report_teacher.php" class="nav-item sub-menu"><i class="fas fa-chalkboard-teacher"></i><span>Teacher Report</span></a>
+                    <a href="report_student.php" class="nav-item sub-menu"><i class="fas fa-users"></i><span>Student Report</span></a>
+                    <a href="report_month.php" class="nav-item sub-menu"><i class="fas fa-chart-line"></i><span>Monthly Report</span></a>
+                </div>
+            </div>
             </div>
                 <a href="Employees.php" class="nav-item" data-page="employees">
                     <i class="fas fa-user-friends"></i> <span>Employees</span>
                 </a>
-                <a href="StudentAttendance.php" class="nav-item" data-page="attendance">
+                <!-- <a href="StudentAttendance.php" class="nav-item" data-page="attendance">
                     <i class="fas fa-calendar-check"></i> <span>Attendance</span>
-                </a>
+                </a> -->
+                <a href="attendance_admin.php" class="nav-item "><i class="fas fa-clipboard-check"></i> <span>Attendance Admin</span></a>
                 <div class="nav-bottom">
                     <a href="logout.php" class="nav-item" style="padding-left:8px;">
                         <i class="fas fa-sign-out-alt"></i> <span>Logout</span>
@@ -873,6 +888,25 @@
          function toggleRequestDropdown() {
             let menu = document.getElementById("RequestDropdownMenu");
             let icon = document.getElementById("RequestDropdownIcon");
+            
+            if (menu.style.display === "block") {
+                menu.style.display = "none";
+                icon.style.transform = "rotate(0deg)";
+            } else {
+                // Close other dropdowns first
+                let studentMenu = document.getElementById("studentDropdownMenu");
+                let studentIcon = document.getElementById("studentDropdownIcon");
+                if (studentMenu) {
+                    studentMenu.style.display = "none";
+                    if (studentIcon) studentIcon.style.transform = "rotate(0deg)";
+                }
+                menu.style.display = "block";
+                icon.style.transform = "rotate(180deg)";
+            }
+        }
+         function toggleReportDropdown() {
+            let menu = document.getElementById("reportDropdownMenu");
+            let icon = document.getElementById("reportDropdownIcon");
             
             if (menu.style.display === "block") {
                 menu.style.display = "none";

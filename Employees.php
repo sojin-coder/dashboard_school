@@ -453,7 +453,8 @@ $msg = isset($_GET['msg']) ? $_GET['msg'] : '';
                 <!-- <a href="card_stuIT.php" class="nav-item" data-page="card"><i class="fas fa-id-card"></i> <span>ID Card</span></a> -->
                 <!-- <a href="Reports.php" class="nav-item" data-page="reports"><i class="fas fa-file-alt"></i> <span>Reports</span></a> -->
                 <a href="#" class="nav-item active" data-page="employees"><i class="fas fa-user-friends"></i> <span>Employees</span></a>
-                <a href="StudentAttendance.php" class="nav-item" data-page="attendance"><i class="fas fa-calendar-check"></i> <span>Attendance</span></a>
+                <!-- <a href="StudentAttendance.php" class="nav-item" data-page="attendance"><i class="fas fa-calendar-check"></i> <span>Attendance</span></a> -->
+                 <a href="attendance_admin.php" class="nav-item "><i class="fas fa-clipboard-check"></i> <span>Attendance Admin</span></a>
                 <div class="nav-bottom">
                 <a href="logout.php" class="nav-item" style="padding-left:8px;">
                     <i class="fas fa-sign-out-alt"></i> <span>Logout</span>

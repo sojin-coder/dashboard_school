@@ -67,7 +67,7 @@ $student_email_db = $student_info['email'] ?? '';
 $student_gender = $student_info['gender'] ?? '';
 $student_dob = $student_info['dob'] ?? '';
 $student_address = $student_info['address'] ?? '';
-$student_shift = $student_info['Shift'] ?? 'N/A';
+$student_shift = $student_info['Shift'] ?? 'N/A'; // យក Shift របស់សិស្ស
 $student_year = $student_info['year'] ?? 'N/A';
 $student_skill = $student_info['skill'] ?? 'N/A';
 $student_image = $student_info['image'] ?? '';
@@ -120,11 +120,56 @@ if (!$scores_result) {
     $scores_result = false;
 }
 
-// Attendance
+// ============================================
+// TODAY'S CLASS SCHEDULE - ប្រើ teacher_classes តែតាម Shift របស់សិស្ស
+// ============================================
+$today = date('Y-m-d');
+$day_of_week = date('l'); // Monday, Tuesday, etc.
+
+// បង្កើត WHERE clause សម្រាប់តម្រង Shift
+$shift_filter = "";
+if (!empty($student_shift) && $student_shift != 'N/A') {
+    // ប្រសិនបើ Shift របស់សិស្សជា 'Morning' ឬ 'Afternoon' ឬ 'Evening'
+    // យើងត្រូវតម្រងតាម shift ក្នុង teacher_classes
+    $shift_filter = "AND tc.shift = '" . mysqli_real_escape_string($db_conn, $student_shift) . "'";
+}
+
+$today_schedule_query = "SELECT 
+    tc.*,
+    t.name as teacher_name,
+    t.email as teacher_email,
+    t.phone as teacher_phone
+FROM teacher_classes tc
+LEFT JOIN teachers t ON tc.teacher_id = t.id
+WHERE tc.schedule_day = '$day_of_week'
+AND tc.status = 'active'
+AND tc.date >= CURDATE()
+$shift_filter
+ORDER BY tc.start_time ASC
+LIMIT 10";
+
+$today_schedule_result = mysqli_query($db_conn, $today_schedule_query);
+if (!$today_schedule_result) {
+    $today_schedule_result = false;
+}
+
+// ============================================
+// ATTENDANCE TODAY - ប្រើ attendance_student
+// ============================================
+$attendance_today_query = "SELECT * FROM attendance_student 
+                           WHERE student_id = '$user_id' 
+                           AND attendance_date = '$today'
+                           ORDER BY id DESC LIMIT 1";
+$attendance_today_result = mysqli_query($db_conn, $attendance_today_query);
+$attendance_today = mysqli_fetch_assoc($attendance_today_result);
+
+// ============================================
+// Attendance Rate - ប្រើ attendance_student
+// ============================================
 $attendance_query = "SELECT 
     COUNT(*) as total_days,
-    SUM(CASE WHEN status = 'P' THEN 1 ELSE 0 END) as present_days 
-    FROM studenattenden 
+    SUM(CASE WHEN status = 'present' THEN 1 ELSE 0 END) as present_days 
+    FROM attendance_student 
     WHERE student_id = '$user_id' 
     AND MONTH(attendance_date) = MONTH(CURRENT_DATE())";
 $att_data_result = mysqli_query($db_conn, $attendance_query);
@@ -137,6 +182,46 @@ if ($att_data_result && mysqli_num_rows($att_data_result) > 0) {
 }
 
 // ============================================
+// SUBJECTS WITH TEACHERS - ប្រើ teacher_classes តែតាម Shift របស់សិស្ស
+// ============================================
+$subjects_query = "SELECT DISTINCT
+    tc.class_name,
+    tc.subject,
+    tc.room,
+    tc.year,
+    tc.shift,
+    tc.semester,
+    tc.academic_year,
+    tc.schedule_day,
+    tc.start_time,
+    tc.end_time,
+    tc.teacher_id,
+    t.name as teacher_name,
+    t.email as teacher_email,
+    t.phone as teacher_phone,
+    t.specialization
+FROM teacher_classes tc
+LEFT JOIN teachers t ON tc.teacher_id = t.id
+WHERE tc.status = 'active'
+AND tc.shift = '" . mysqli_real_escape_string($db_conn, $student_shift) . "'
+AND tc.teacher_id IN (
+    SELECT DISTINCT teacher_id 
+    FROM teacher_classes 
+    WHERE class_name IN (
+        SELECT DISTINCT class_name 
+        FROM enrollments e 
+        JOIN teacher_classes tc2 ON e.course_id = tc2.id 
+        WHERE e.student_id = '$user_id'
+    )
+)
+ORDER BY tc.schedule_day, tc.start_time ASC";
+
+$subjects_result = mysqli_query($db_conn, $subjects_query);
+if (!$subjects_result) {
+    $subjects_result = false;
+}
+
+// ============================================
 // គណនាស្ថិតិ
 // ============================================
 $sql_total_students = mysqli_query($db_conn, "SELECT COUNT(*) as total FROM students");
@@ -145,11 +230,9 @@ $total_students_all = mysqli_fetch_assoc($sql_total_students)['total'] ?? 0;
 $sql_total_colleges = mysqli_query($db_conn, "SELECT COUNT(DISTINCT college) as total FROM students");
 $total_colleges = mysqli_fetch_assoc($sql_total_colleges)['total'] ?? 0;
 
-// Count students in same department/college
 $sql_same_dept = mysqli_query($db_conn, "SELECT COUNT(*) as total FROM students WHERE college = '$student_department'");
 $total_same_dept = mysqli_fetch_assoc($sql_same_dept)['total'] ?? 0;
 
-// Count total teachers
 $sql_teachers_total = mysqli_query($db_conn, "SELECT COUNT(*) as total FROM teachers");
 $total_teachers = mysqli_fetch_assoc($sql_teachers_total)['total'] ?? 0;
 ?>
@@ -249,6 +332,54 @@ $total_teachers = mysqli_fetch_assoc($sql_teachers_total)['total'] ?? 0;
         .score-low { color: #ef4444; font-weight: 700; }
         .score-medium { color: #f59e0b; font-weight: 700; }
         
+        .status-present { color: #10b981; font-weight: 600; }
+        .status-absent { color: #ef4444; font-weight: 600; }
+        .status-late { color: #f59e0b; font-weight: 600; }
+        
+        .schedule-card { 
+            background: white; 
+            border-radius: 16px; 
+            padding: 15px 20px; 
+            margin-bottom: 12px;
+            border-left: 4px solid #4f46e5;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            transition: 0.2s;
+        }
+        .schedule-card:hover { transform: translateX(5px); }
+        .schedule-card .time { font-weight: 600; color: #4f46e5; }
+        .schedule-card .subject { font-weight: 500; }
+        .schedule-card .teacher { color: #64748b; font-size: 0.9rem; }
+        
+        .teacher-badge {
+            display: inline-block;
+            background: #e0e7ff;
+            color: #4338ca;
+            padding: 2px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        
+        .schedule-day-badge {
+            display: inline-block;
+            background: #f1f5f9;
+            color: #475569;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 500;
+        }
+        
+        .shift-badge {
+            display: inline-block;
+            background: #fef3c7;
+            color: #92400e;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 500;
+        }
+        
         canvas { max-height: 280px; width: 100%; }
         
         @media (max-width: 768px) {
@@ -303,20 +434,9 @@ $total_teachers = mysqli_fetch_assoc($sql_teachers_total)['total'] ?? 0;
         <div class="top-bar">
             <div class="page-title"><h2><i class="fas fa-user-graduate me-2"></i>Student Dashboard</h2></div>
             
-            <form method="GET" action="" class="search-box">
-                <input type="text" name="search_id" placeholder="Search by Student ID..." value="<?php echo isset($_GET['search_id']) ? htmlspecialchars($_GET['search_id']) : ''; ?>">
-                <button type="submit"><i class="fas fa-search"></i></button>
-            </form>
-            
+                   
             <div class="date-time" id="currentDateTime"></div>
         </div>
-        
-        <?php if ($search_error): ?>
-            <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                <i class="fas fa-exclamation-triangle me-2"></i> ID Not found! Showing your own profile.
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-            </div>
-        <?php endif; ?>
         
         <!-- STUDENT PROFILE CARD -->
         <div class="profile-card">
@@ -348,7 +468,7 @@ $total_teachers = mysqli_fetch_assoc($sql_teachers_total)['total'] ?? 0;
             <div class="kpi-card" style="border-left-color: #10b981;">
                 <div class="kpi-title"><i class="fas fa-calendar-check"></i> Attendance Rate</div>
                 <div class="kpi-number"><?php echo $attendance_rate; ?>%</div>
-                <small>This month (Status 'P')</small>
+                <small>This month (Status 'present')</small>
             </div>
             <div class="kpi-card" style="border-left-color: #f59e0b;">
                 <div class="kpi-title"><i class="fas fa-book"></i> Enrolled Courses</div>
@@ -357,31 +477,129 @@ $total_teachers = mysqli_fetch_assoc($sql_teachers_total)['total'] ?? 0;
             </div>
             <div class="kpi-card" style="border-left-color: #ef4444;">
                 <div class="kpi-title"><i class="fas fa-clock"></i> Shift</div>
-                <div class="kpi-number" style="font-size: 20px; padding-top: 8px;"><?php echo htmlspecialchars($student['Shift'] ?? 'N/A'); ?></div>
+                <div class="kpi-number" style="font-size: 20px; padding-top: 8px;">
+                    <span class="shift-badge"><?php echo htmlspecialchars($student['Shift'] ?? 'N/A'); ?></span>
+                </div>
                 <small>Study Time</small>
             </div>
         </div>
         
+        <!-- TODAY'S CLASS SCHEDULE -->
         <div class="stats-row">
-            <div class="stats-col">
+            <div class="stats-col" style="flex: 2;">
                 <div class="chart-box">
-                    <h4><i class="fas fa-chart-pie"></i> My Performance by Subject</h4>
-                    <canvas id="scoresChart" height="250"></canvas>
+                    <h4>
+                        <i class="fas fa-calendar-day"></i> Today's Class Schedule - <?php echo date('l, d/m/Y'); ?>
+                        <?php if (!empty($student_shift) && $student_shift != 'N/A'): ?>
+                            <span class="shift-badge ms-2"><i class="fas fa-clock"></i> <?php echo htmlspecialchars($student_shift); ?> Shift</span>
+                        <?php endif; ?>
+                    </h4>
+                    <?php if ($today_schedule_result && mysqli_num_rows($today_schedule_result) > 0): ?>
+                        <?php while ($schedule = mysqli_fetch_assoc($today_schedule_result)): ?>
+                            <div class="schedule-card">
+                                <div class="d-flex justify-content-between align-items-center flex-wrap">
+                                    <div>
+                                        <span class="time"><i class="far fa-clock"></i> <?php echo date('h:i A', strtotime($schedule['start_time'])); ?> - <?php echo date('h:i A', strtotime($schedule['end_time'])); ?></span>
+                                        <span class="subject ms-3"><i class="fas fa-book"></i> <?php echo htmlspecialchars($schedule['class_name'] ?? $schedule['subject'] ?? 'N/A'); ?></span>
+                                    </div>
+                                    <div>
+                                        <span class="teacher-badge">
+                                            <i class="fas fa-chalkboard-teacher"></i> <?php echo htmlspecialchars($schedule['teacher_name'] ?? 'N/A'); ?>
+                                        </span>
+                                        <span class="badge bg-secondary ms-2"><?php echo htmlspecialchars($schedule['room'] ?? 'N/A'); ?></span>
+                                        <?php if (!empty($schedule['shift'])): ?>
+                                            <span class="badge bg-info ms-2"><?php echo htmlspecialchars($schedule['shift']); ?></span>
+                                        <?php endif; ?>
+                                    </div>
+                                </div>
+                                <?php if (!empty($schedule['subject'])): ?>
+                                    <small class="text-muted d-block mt-1"><i class="fas fa-tag"></i> Subject: <?php echo htmlspecialchars($schedule['subject']); ?></small>
+                                <?php endif; ?>
+                                <?php if (!empty($schedule['year'])): ?>
+                                    <small class="text-muted d-block">Year: <?php echo htmlspecialchars($schedule['year']); ?> | Semester: <?php echo htmlspecialchars($schedule['semester'] ?? 'N/A'); ?></small>
+                                <?php endif; ?>
+                            </div>
+                        <?php endwhile; ?>
+                    <?php else: ?>
+                        <div class="text-center text-muted py-4">
+                            <i class="fas fa-clock fa-3x mb-3 d-block" style="opacity: 0.3;"></i>
+                            <p>No classes scheduled for today <strong>(<?php echo htmlspecialchars($student_shift); ?> Shift)</strong>.</p>
+                            <small>Enjoy your day off! 🎉</small>
+                        </div>
+                    <?php endif; ?>
                 </div>
             </div>
+            
+            <!-- ATTENDANCE TODAY -->
+            <div class="stats-col" style="flex: 1;">
+                <div class="chart-box">
+                    <h4><i class="fas fa-clipboard-check"></i> Attendance Today</h4>
+                    <?php if ($attendance_today): ?>
+                        <div class="text-center py-3">
+                            <div style="font-size: 3rem; margin-bottom: 10px;">
+                                <?php 
+                                $status = strtolower($attendance_today['status'] ?? '');
+                                if ($status == 'present'): ?>
+                                    <span class="status-present">✅</span>
+                                <?php elseif ($status == 'late'): ?>
+                                    <span class="status-late">⏰</span>
+                                <?php elseif ($status == 'absent'): ?>
+                                    <span class="status-absent">❌</span>
+                                <?php else: ?>
+                                    <span>❓</span>
+                                <?php endif; ?>
+                            </div>
+                            <h5>
+                                <?php 
+                                    $status_text = ucfirst($attendance_today['status'] ?? 'Unknown');
+                                    $status_class = '';
+                                    if ($status == 'present') {
+                                        $status_class = 'status-present';
+                                    } elseif ($status == 'late') {
+                                        $status_class = 'status-late';
+                                    } elseif ($status == 'absent') {
+                                        $status_class = 'status-absent';
+                                    }
+                                ?>
+                                <span class="<?php echo $status_class; ?>"><?php echo htmlspecialchars($status_text); ?></span>
+                            </h5>
+                            <?php if (!empty($attendance_today['attendance_date'])): ?>
+                                <small class="text-muted">Date: <?php echo date('d/m/Y', strtotime($attendance_today['attendance_date'])); ?></small>
+                            <?php endif; ?>
+                            <?php if (!empty($attendance_today['class_name'])): ?>
+                                <p class="mt-1"><small class="text-muted">Class ID: <?php echo htmlspecialchars($attendance_today['class_name']); ?></small></p>
+                            <?php endif; ?>
+                            <?php if (!empty($attendance_today['student_name'])): ?>
+                                <p class="mt-1"><small><i class="fas fa-user"></i> <?php echo htmlspecialchars($attendance_today['student_name']); ?></small></p>
+                            <?php endif; ?>
+                        </div>
+                    <?php else: ?>
+                        <div class="text-center text-muted py-4">
+                            <i class="fas fa-question-circle fa-3x mb-3 d-block" style="opacity: 0.3;"></i>
+                            <p>No attendance recorded for today.</p>
+                            <small>Please check with your teacher.</small>
+                        </div>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+        
+        
+        <div class="stats-row">
             <div class="stats-col">
                 <div class="chart-box">
                     <h4><i class="fas fa-info-circle"></i> Study Info Summary</h4>
                     <p><strong>College/Major:</strong> <?php echo htmlspecialchars($student['college'] ?? 'N/A'); ?></p>
                     <p><strong>Skill/Focus:</strong> <?php echo htmlspecialchars($student['skill'] ?? 'N/A'); ?></p>
                     <p><strong>Year:</strong> <?php echo htmlspecialchars($student['year'] ?? 'N/A'); ?></p>
+                    <p><strong>Shift:</strong> <span class="shift-badge"><?php echo htmlspecialchars($student['Shift'] ?? 'N/A'); ?></span></p>
                     <p><strong>Address:</strong> <?php echo htmlspecialchars($student['address'] ?? 'N/A'); ?></p>
                 </div>
             </div>
         </div>
         
         <div class="stats-row">
-            <div class="stats-col">
+            <!-- <div class="stats-col">
                 <div class="chart-box">
                     <h4><i class="fas fa-star"></i> Recent Exam Scores</h4>
                     <table class="info-table">
@@ -413,8 +631,8 @@ $total_teachers = mysqli_fetch_assoc($sql_teachers_total)['total'] ?? 0;
                         </tbody>
                     </table>
                 </div>
-            </div>
-            <div class="stats-col">
+            </div> -->
+            <!-- <div class="stats-col">
                 <div class="chart-box">
                     <h4><i class="fas fa-book-open"></i> My Enrolled Courses</h4>
                     <table class="info-table">
@@ -439,29 +657,8 @@ $total_teachers = mysqli_fetch_assoc($sql_teachers_total)['total'] ?? 0;
                         </tbody>
                     </table>
                 </div>
-            </div>
+            </div> -->
         </div>
-        
-        <!-- STATISTICS ROW -->
-        <!-- <div class="kpi-row">
-            <div class="kpi-card" style="border-left-color: #8b5cf6; width: 100%;">
-                <div class="kpi-title"><i class="fas fa-users"></i> Statistics</div>
-                <div class="row">
-                    <div class="col-md-3">
-                        <strong>Total Students:</strong> <?php echo $total_students_all; ?>
-                    </div>
-                    <div class="col-md-3">
-                        <strong>Students in <?php echo htmlspecialchars($student_department); ?>:</strong> <?php echo $total_same_dept; ?>
-                    </div>
-                    <div class="col-md-3">
-                        <strong>Total Colleges:</strong> <?php echo $total_colleges; ?>
-                    </div>
-                    <div class="col-md-3">
-                        <strong>Total Teachers:</strong> <?php echo $total_teachers; ?>
-                    </div>
-                </div>
-            </div>
-        </div> -->
     </div>
 </div>
 

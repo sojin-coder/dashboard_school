@@ -1,10 +1,5 @@
 <?php
-// Request_student.php - Admin Student Request Management
 include "db.php";
-
-// ============================================
-// CHECK ADMIN LOGIN
-// ============================================
 if(!isset($_SESSION['id']) || $_SESSION['role'] !== 'admin') {
     header("Location: login.php");
     exit();
@@ -28,9 +23,6 @@ if(mysqli_num_rows($column_result) == 0) {
     mysqli_query($conn, $alter_sql);
 }
 
-// ============================================
-// PROCESS APPROVE/REJECT
-// ============================================
 if(isset($_POST['action']) && isset($_POST['request_id'])) {
     $request_id = mysqli_real_escape_string($conn, $_POST['request_id']);
     $action = mysqli_real_escape_string($conn, $_POST['action']);
@@ -408,9 +400,10 @@ $total_records = $total_all['total'] ?? 0;
             <a href="Employees.php" class="nav-item" data-page="employees">
                 <i class="fas fa-user-friends"></i> <span>Employees</span>
             </a>
-            <a href="StudentAttendance.php" class="nav-item" data-page="attendance">
+            <!-- <a href="StudentAttendance.php" class="nav-item" data-page="attendance">
                 <i class="fas fa-calendar-check"></i> <span>Attendance</span>
-            </a>
+            </a> -->
+            <a href="attendance_admin.php" class="nav-item "><i class="fas fa-clipboard-check"></i> <span>Attendance Admin</span></a>
             
             <div class="nav-bottom">
                 <a href="logout.php" class="nav-item" style="padding-left:8px;">

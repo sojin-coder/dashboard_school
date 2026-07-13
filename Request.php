@@ -1,98 +1,98 @@
 <?php
 
-include "check_login.php";
-
-
-$message = '';
-$error = '';
-
-if(isset($_POST['add_rule'])) {
-    $title = mysqli_real_escape_string($conn, $_POST['title']);
-    $description = mysqli_real_escape_string($conn, $_POST['description']);
-    $rule_type = mysqli_real_escape_string($conn, $_POST['rule_type']);
-    $apply_date = mysqli_real_escape_string($conn, $_POST['apply_date']);
-    $end_date = !empty($_POST['end_date']) ? mysqli_real_escape_string($conn, $_POST['end_date']) : NULL;
-    $status = mysqli_real_escape_string($conn, $_POST['status']);
-    $selected_days = isset($_POST['days']) ? $_POST['days'] : [];
-    
-    if(empty($title) || empty($description)) {
-        $error = "Please fill in all required fields!";
-    } else {
-        // បញ្ចូលច្បាប់
-        $insert_sql = "INSERT INTO rules (
-            teacher_id, teacher_name, title, description, rule_type, 
-            apply_date, end_date, status
-        ) VALUES (
-            '$logged_in_id', '$logged_in_teacher', '$title', '$description', '$rule_type',
-            '$apply_date', " . ($end_date ? "'$end_date'" : "NULL") . ", '$status'
-        )";
+        include "check_login.php";
         
-        if(mysqli_query($conn, $insert_sql)) {
-            $rule_id = mysqli_insert_id($conn);
+        
+        $message = '';
+        $error = '';
+        
+        if(isset($_POST['add_rule'])) {
+            $title = mysqli_real_escape_string($conn, $_POST['title']);
+            $description = mysqli_real_escape_string($conn, $_POST['description']);
+            $rule_type = mysqli_real_escape_string($conn, $_POST['rule_type']);
+            $apply_date = mysqli_real_escape_string($conn, $_POST['apply_date']);
+            $end_date = !empty($_POST['end_date']) ? mysqli_real_escape_string($conn, $_POST['end_date']) : NULL;
+            $status = mysqli_real_escape_string($conn, $_POST['status']);
+            $selected_days = isset($_POST['days']) ? $_POST['days'] : [];
             
-            // បញ្ចូលថ្ងៃអនុវត្ត
-            if(!empty($selected_days)) {
-                foreach($selected_days as $day) {
-                    $day_sql = "INSERT INTO rule_days (rule_id, day_of_week) VALUES ('$rule_id', '$day')";
-                    mysqli_query($conn, $day_sql);
+            if(empty($title) || empty($description)) {
+                $error = "Please fill in all required fields!";
+            } else {
+                // បញ្ចូលច្បាប់
+                $insert_sql = "INSERT INTO rules (
+                    teacher_id, teacher_name, title, description, rule_type, 
+                    apply_date, end_date, status
+                ) VALUES (
+                    '$logged_in_id', '$logged_in_teacher', '$title', '$description', '$rule_type',
+                    '$apply_date', " . ($end_date ? "'$end_date'" : "NULL") . ", '$status'
+                )";
+                
+                if(mysqli_query($conn, $insert_sql)) {
+                    $rule_id = mysqli_insert_id($conn);
+                    
+                    // បញ្ចូលថ្ងៃអនុវត្ត
+                    if(!empty($selected_days)) {
+                        foreach($selected_days as $day) {
+                            $day_sql = "INSERT INTO rule_days (rule_id, day_of_week) VALUES ('$rule_id', '$day')";
+                            mysqli_query($conn, $day_sql);
+                        }
+                    }
+                    
+                    $message = "✅ Rule added successfully!";
+                } else {
+                    $error = "❌ Error adding rule: " . mysqli_error($conn);
                 }
             }
-            
-            $message = "✅ Rule added successfully!";
-        } else {
-            $error = "❌ Error adding rule: " . mysqli_error($conn);
         }
-    }
-}
-
-// ============================================
-// ដំណើរការលុបច្បាប់
-// ============================================
-if(isset($_GET['delete']) && is_numeric($_GET['delete'])) {
-    $rule_id = $_GET['delete'];
-    $delete_sql = "DELETE FROM rules WHERE id = '$rule_id' AND teacher_id = '$logged_in_id'";
-    
-    if(mysqli_query($conn, $delete_sql)) {
-        $message = "✅ Rule deleted successfully!";
-    } else {
-        $error = "❌ Error deleting rule: " . mysqli_error($conn);
-    }
-}
-
-
-if(isset($_GET['toggle']) && is_numeric($_GET['toggle'])) {
-    $rule_id = $_GET['toggle'];
-    $status_sql = "SELECT status FROM rules WHERE id = '$rule_id' AND teacher_id = '$logged_in_id'";
-    $status_result = mysqli_query($conn, $status_sql);
-    $status_row = mysqli_fetch_assoc($status_result);
-    
-    if($status_row) {
-        $new_status = ($status_row['status'] == 'active') ? 'inactive' : 'active';
-        $update_sql = "UPDATE rules SET status = '$new_status' WHERE id = '$rule_id' AND teacher_id = '$logged_in_id'";
-        mysqli_query($conn, $update_sql);
-        $message = "✅ Rule status updated!";
-    }
-}
-
-
-$rules_query = "SELECT r.*, 
-                (SELECT COUNT(*) FROM rule_days WHERE rule_id = r.id) as day_count
-                FROM rules r 
-                WHERE r.teacher_id = '$logged_in_id' 
-                ORDER BY r.created_at DESC";
-$rules_result = mysqli_query($conn, $rules_query);
-
-$rule_days = [];
-$all_rules = mysqli_query($conn, "SELECT id FROM rules WHERE teacher_id = '$logged_in_id'");
-while($rule = mysqli_fetch_assoc($all_rules)) {
-    $days_query = "SELECT day_of_week FROM rule_days WHERE rule_id = '{$rule['id']}'";
-    $days_result = mysqli_query($conn, $days_query);
-    $days = [];
-    while($day = mysqli_fetch_assoc($days_result)) {
-        $days[] = $day['day_of_week'];
-    }
-    $rule_days[$rule['id']] = $days;
-}
+        
+        // ============================================
+        // ដំណើរការលុបច្បាប់
+        // ============================================
+        if(isset($_GET['delete']) && is_numeric($_GET['delete'])) {
+            $rule_id = $_GET['delete'];
+            $delete_sql = "DELETE FROM rules WHERE id = '$rule_id' AND teacher_id = '$logged_in_id'";
+            
+            if(mysqli_query($conn, $delete_sql)) {
+                $message = "✅ Rule deleted successfully!";
+            } else {
+                $error = "❌ Error deleting rule: " . mysqli_error($conn);
+            }
+        }
+        
+        
+        if(isset($_GET['toggle']) && is_numeric($_GET['toggle'])) {
+            $rule_id = $_GET['toggle'];
+            $status_sql = "SELECT status FROM rules WHERE id = '$rule_id' AND teacher_id = '$logged_in_id'";
+            $status_result = mysqli_query($conn, $status_sql);
+            $status_row = mysqli_fetch_assoc($status_result);
+            
+            if($status_row) {
+                $new_status = ($status_row['status'] == 'active') ? 'inactive' : 'active';
+                $update_sql = "UPDATE rules SET status = '$new_status' WHERE id = '$rule_id' AND teacher_id = '$logged_in_id'";
+                mysqli_query($conn, $update_sql);
+                $message = "✅ Rule status updated!";
+            }
+        }
+        
+        
+        $rules_query = "SELECT r.*, 
+                        (SELECT COUNT(*) FROM rule_days WHERE rule_id = r.id) as day_count
+                        FROM rules r 
+                        WHERE r.teacher_id = '$logged_in_id' 
+                        ORDER BY r.created_at DESC";
+        $rules_result = mysqli_query($conn, $rules_query);
+        
+        $rule_days = [];
+        $all_rules = mysqli_query($conn, "SELECT id FROM rules WHERE teacher_id = '$logged_in_id'");
+        while($rule = mysqli_fetch_assoc($all_rules)) {
+            $days_query = "SELECT day_of_week FROM rule_days WHERE rule_id = '{$rule['id']}'";
+            $days_result = mysqli_query($conn, $days_query);
+            $days = [];
+            while($day = mysqli_fetch_assoc($days_result)) {
+                $days[] = $day['day_of_week'];
+            }
+            $rule_days[$rule['id']] = $days;
+        }
 ?>
 
 <!DOCTYPE html>
@@ -264,6 +264,10 @@ while($rule = mysqli_fetch_assoc($all_rules)) {
             <a href="forteacher.php" class="nav-item"><i class="fas fa-tachometer-alt"></i> <span>Main Dashboard</span></a>
             <a href="class.php" class="nav-item"><i class="fas fa-chalkboard-teacher"></i> <span>Class</span></a>
             <a href="Request.php" class="nav-item active"><i class="fas fa-file-signature"></i> <span>Request</span></a>
+            <a href="substitute.php" class="nav-item">
+                <i class="fas fa-people-arrows"></i>
+                <span>Substitute Class</span>
+            </a>
             <a href="settings_teacher.php" class="nav-item"><i class="fas fa-cog"></i> <span>Setting</span></a>
             <div class="nav-bottom">
                 <a href="logout.php" class="nav-item" style="padding-left:8px;">

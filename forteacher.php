@@ -1,251 +1,271 @@
 <?php
-    if (session_status() === PHP_SESSION_NONE) {
-        // session_start();
-    }
-    
-    include "db.php";
-    
-    // ការពារ user ប្តូរ link
-    if(!isset($_SESSION['id'])){
-        header("Location: login.php");
-        exit();
-    }
-    
-    // ============================================
-    // យកអ៊ីមែលពី Session
-    // ============================================
-    $logged_in_email = $_SESSION['email'] ?? '';
-    
-    // បើគ្មានអ៊ីមែលក្នុង Session ប្រើឈ្មោះ
-    if(empty($logged_in_email)) {
-        $logged_in_name = $_SESSION['name'] ?? '';
-        $sql_teacher_info = "SELECT * FROM teachers WHERE name = '$logged_in_name'";
-    } else {
-        $sql_teacher_info = "SELECT * FROM teachers WHERE email = '$logged_in_email'";
-    }
-    
-    $result_teacher_info = mysqli_query($conn, $sql_teacher_info);
-    $teacher_info = mysqli_fetch_assoc($result_teacher_info);
-    
-    // ============================================
-    // បើរកមិនឃើញ បង្ហាញកំហុស
-    // ============================================
-    if(!$teacher_info) {
-        echo "<div style='padding:30px; background:#f8d7da; color:#721c24; border-radius:10px; margin:20px; font-family:Arial;'>
-            <h3>⚠️ Teacher Not Found!</h3>
-            <p><strong>Email from Session:</strong> " . htmlspecialchars($logged_in_email) . "</p>
-            <p><strong>Name from Session:</strong> " . htmlspecialchars($_SESSION['name'] ?? 'N/A') . "</p>
-            <p><strong>Role:</strong> " . htmlspecialchars($_SESSION['role'] ?? 'N/A') . "</p>
-            <hr>
-            <p><strong>Available teachers in database:</strong></p>
-            <ul>";
-        
-        $all_teachers = mysqli_query($conn, "SELECT id, name, email FROM teachers");
-        while($t = mysqli_fetch_assoc($all_teachers)) {
-            echo "<li>ID: {$t['id']} - {$t['name']} ({$t['email']})</li>";
-        }
-        
-        echo "</ul>
-            <a href='logout.php' style='display:inline-block; padding:10px 20px; background:#dc3545; color:white; text-decoration:none; border-radius:5px;'>Logout</a>
-        </div>";
-        exit();
-    }
-    
-    // ============================================
-    // យកទិន្នន័យគ្រូ
-    // ============================================
-    $logged_in_teacher = $teacher_info['name'];
-    $logged_in_id = $teacher_info['id'];
-    $teacher_department = $teacher_info['department'] ?? 'IT';
-    $teacher_subject = $teacher_info['subject'] ?? '';
-    $teacher_phone = $teacher_info['phone'] ?? '';
-    $teacher_email_db = $teacher_info['email'] ?? '';
-    $teacher_gender = $teacher_info['gender'] ?? '';
-    $teacher_dob = $teacher_info['dob'] ?? '';
-    $teacher_salary = $teacher_info['salary'] ?? 0;
-    $teacher_address = $teacher_info['address'] ?? '';
-    $teacher_image = $teacher_info['image'] ?? '';
-    
-    // ============================================
-    // គណនាស្ថិតិ
-    // ============================================
-    $sql_students_count = mysqli_query($conn, "SELECT COUNT(*) as total FROM students WHERE college = '$teacher_department'");
-    $total_students_by_dept = mysqli_fetch_assoc($sql_students_count)['total'] ?? 0;
-    
-    $sql_total_students = mysqli_query($conn, "SELECT COUNT(*) as total FROM students");
-    $total_students_all = mysqli_fetch_assoc($sql_total_students)['total'] ?? 0;
-    
-    $sql_total_college = mysqli_query($conn, "SELECT COUNT(DISTINCT college) as total FROM students");
-    $total_colleges = mysqli_fetch_assoc($sql_total_college)['total'] ?? 0;
-    
-    // ============================================
-    // យកកាលវិភាគដែលមានត្រងតាម Subject ឬ Teacher Name
-    // ============================================
-    // ទទួលតម្លៃ Filter ពី GET
-    $filter_type = isset($_GET['filter_type']) ? $_GET['filter_type'] : 'subject';
-    $filter_value = isset($_GET['filter_value']) ? $_GET['filter_value'] : '';
-    
-    // ប្រសិនបើគ្មានតម្លៃ Filter ប្រើ subject របស់គ្រូដែល Login
-    if(empty($filter_value)) {
-        $filter_value = $teacher_subject;
-    }
-    
-    // បង្កើត Query តាមប្រភេទ Filter
-    if($filter_type == 'subject') {
-        $schedule_query = "SELECT * FROM schedule_class 
-                           WHERE subject = '$filter_value' 
-                           ORDER BY date DESC, time_star ASC LIMIT 10";
-    } else if($filter_type == 'teacher') {
-        // បើតារាង schedule_class មានជួរឈរ teacher_name
-        // បើមិនមាន អាចប្រើ WHERE teacher_name = '$logged_in_teacher'
-        $schedule_query = "SELECT * FROM schedule_class 
-                           WHERE teacher_name = '$filter_value' 
-                           ORDER BY date DESC, time_star ASC LIMIT 10";
-    } else {
-        // Default: បង្ហាញទាំងអស់ (ឬតាម department)
-        $schedule_query = "SELECT * FROM schedule_class 
-                           WHERE department = '$teacher_department' 
-                           ORDER BY date DESC, time_star ASC LIMIT 10";
-    }
-    
-    $schedule_result = mysqli_query($conn, $schedule_query);
-    
-    // ============================================
-    // យកបញ្ជីមុខវិជ្ជាទាំងអស់សម្រាប់ Dropdown Filter
-    // ============================================
-    $subjects_query = "SELECT DISTINCT subject FROM schedule_class ORDER BY subject ASC";
-    $subjects_result = mysqli_query($conn, $subjects_query);
-    $subjects_list = [];
-    while($sub = mysqli_fetch_assoc($subjects_result)) {
-        $subjects_list[] = $sub['subject'];
-    }
-    
-    // ============================================
-    // យកបញ្ជីគ្រូទាំងអស់សម្រាប់ Dropdown Filter
-    // ============================================
-    // បើតារាង schedule_class មាន teacher_name
-    $teachers_query = "SELECT DISTINCT teacher_name FROM schedule_class WHERE teacher_name IS NOT NULL AND teacher_name != '' ORDER BY teacher_name ASC";
-    $teachers_result = mysqli_query($conn, $teachers_query);
-    $teachers_list = [];
-    while($tch = mysqli_fetch_assoc($teachers_result)) {
-        $teachers_list[] = $tch['teacher_name'];
-    }
-    
-    // ============================================
-    // យកពិន្ទុសិស្ស
-    // ============================================
-    $progress_query = "SELECT s.*, st.college 
-                       FROM scores s 
-                       JOIN students st ON s.name = st.name 
-                       WHERE s.subject = '$teacher_subject' 
-                       ORDER BY s.score DESC 
-                       LIMIT 5";
-    $progress_result = mysqli_query($conn, $progress_query);
-    
-    $top_query = "SELECT s.*, st.college 
-                  FROM scores s 
-                  JOIN students st ON s.name = st.name 
-                  WHERE s.subject = '$teacher_subject' AND s.Grade IN ('A','B') 
-                  ORDER BY s.score DESC 
-                  LIMIT 5";
-    $top_result = mysqli_query($conn, $top_query);
-    
-    $sql_teachers_total = mysqli_query($conn, "SELECT COUNT(*) as total FROM teachers");
-    $total_teachers = mysqli_fetch_assoc($sql_teachers_total)['total'] ?? 0;
-    
-    // ============================================
-    // យកថ្នាក់ដែលគ្រូបង្រៀននៅថ្ងៃនេះ
-    // ============================================
-    $today = date('Y-m-d');
-    $current_day = date('l');
-    
-    $today_classes_query = "SELECT tc.*, 
-                            tl.id as log_id, 
-                            tl.status as teaching_status,
-                            tl.teaching_date,
-                            tl.notes as teaching_notes
-                            FROM teacher_classes tc
-                            LEFT JOIN teaching_log tl ON tc.id = tl.class_id 
-                                AND tl.teacher_id = tc.teacher_id 
-                                AND tl.teaching_date = '$today'
-                            WHERE tc.teacher_id = '$logged_in_id' 
-                            AND tc.status = 'active'
-                            AND (tc.schedule_day = '$current_day' OR tc.schedule_day IS NULL)
-                            ORDER BY tc.start_time ASC";
-    $today_classes_result = mysqli_query($conn, $today_classes_query);
-    
-    $completed_count = 0;
-    $pending_count = 0;
-    $classes_today = [];
-    while($class = mysqli_fetch_assoc($today_classes_result)) {
-        $classes_today[] = $class;
-        if($class['teaching_status'] == 'completed') {
-            $completed_count++;
-        } else {
-            $pending_count++;
-        }
-    }
-    
-    // ============================================
-    // ដំណើរការសម្គាល់ថាបានបង្រៀនហើយ
-    // ============================================
-    if(isset($_POST['mark_taught'])) {
-        $class_id = mysqli_real_escape_string($conn, $_POST['class_id']);
-        $teaching_date = mysqli_real_escape_string($conn, $_POST['teaching_date']);
-        $notes = mysqli_real_escape_string($conn, $_POST['notes'] ?? '');
-        
-        $check_sql = "SELECT id FROM teaching_log 
-                      WHERE teacher_id = '$logged_in_id' 
-                      AND class_id = '$class_id' 
-                      AND teaching_date = '$teaching_date'";
-        $check_result = mysqli_query($conn, $check_sql);
-        
-        if(mysqli_num_rows($check_result) > 0) {
-            $update_sql = "UPDATE teaching_log SET 
-                           status = 'completed',
-                           notes = '$notes',
-                           updated_at = NOW()
-                           WHERE teacher_id = '$logged_in_id' 
-                           AND class_id = '$class_id' 
-                           AND teaching_date = '$teaching_date'";
-            mysqli_query($conn, $update_sql);
-        } else {
-            $class_info_sql = "SELECT class_name, subject FROM teacher_classes WHERE id = '$class_id'";
-            $class_info_result = mysqli_query($conn, $class_info_sql);
-            $class_info = mysqli_fetch_assoc($class_info_result);
+            if (session_status() === PHP_SESSION_NONE) {
+                // session_start();
+            }
             
-            $insert_sql = "INSERT INTO teaching_log (
-                teacher_id, class_id, class_name, subject, 
-                teaching_date, status, notes
-            ) VALUES (
-                '$logged_in_id', '$class_id', 
-                '{$class_info['class_name']}', '{$class_info['subject']}',
-                '$teaching_date', 'completed', '$notes'
-            )";
-            mysqli_query($conn, $insert_sql);
-        }
+            include "db.php";
+            
+            // ការពារ user ប្តូរ link
+            if(!isset($_SESSION['id'])){
+                header("Location: login.php");
+                exit();
+            }
+            
+          
+            $logged_in_email = $_SESSION['email'] ?? '';
         
-        echo "<script>window.location='forteacher.php';</script>";
-        exit();
-    }
-    
-    // ============================================
-    // ដំណើរការមិនទាន់បង្រៀន (Pending)
-    // ============================================
-    if(isset($_POST['mark_pending'])) {
-        $class_id = mysqli_real_escape_string($conn, $_POST['class_id']);
-        $teaching_date = mysqli_real_escape_string($conn, $_POST['teaching_date']);
+            if(empty($logged_in_email)) {
+                $logged_in_name = $_SESSION['name'] ?? '';
+                $sql_teacher_info = "SELECT * FROM teachers WHERE name = '$logged_in_name'";
+            } else {
+                $sql_teacher_info = "SELECT * FROM teachers WHERE email = '$logged_in_email'";
+            }
+            
+            $result_teacher_info = mysqli_query($conn, $sql_teacher_info);
+            $teacher_info = mysqli_fetch_assoc($result_teacher_info);
+            
         
-        $update_sql = "UPDATE teaching_log SET 
-                       status = 'pending'
-                       WHERE teacher_id = '$logged_in_id' 
-                       AND class_id = '$class_id' 
-                       AND teaching_date = '$teaching_date'";
-        mysqli_query($conn, $update_sql);
+            if(!$teacher_info) {
+                echo "<div style='padding:30px; background:#f8d7da; color:#721c24; border-radius:10px; margin:20px; font-family:Arial;'>
+                    <h3>⚠️ Teacher Not Found!</h3>
+                    <p><strong>Email from Session:</strong> " . htmlspecialchars($logged_in_email) . "</p>
+                    <p><strong>Name from Session:</strong> " . htmlspecialchars($_SESSION['name'] ?? 'N/A') . "</p>
+                    <p><strong>Role:</strong> " . htmlspecialchars($_SESSION['role'] ?? 'N/A') . "</p>
+                    <hr>
+                    <p><strong>Available teachers in database:</strong></p>
+                    <ul>";
+                
+                $all_teachers = mysqli_query($conn, "SELECT id, name, email FROM teachers");
+                while($t = mysqli_fetch_assoc($all_teachers)) {
+                    echo "<li>ID: {$t['id']} - {$t['name']} ({$t['email']})</li>";
+                }
+                
+                echo "</ul>
+                    <a href='logout.php' style='display:inline-block; padding:10px 20px; background:#dc3545; color:white; text-decoration:none; border-radius:5px;'>Logout</a>
+                </div>";
+                exit();
+            }
+            
+            $logged_in_teacher = $teacher_info['name'];
+            $logged_in_id = $teacher_info['id'];
+            $teacher_department = $teacher_info['department'] ?? 'IT';
+            $teacher_subject = $teacher_info['subject'] ?? '';
+            $teacher_phone = $teacher_info['phone'] ?? '';
+            $teacher_email_db = $teacher_info['email'] ?? '';
+            $teacher_gender = $teacher_info['gender'] ?? '';
+            $teacher_dob = $teacher_info['dob'] ?? '';
+            $teacher_salary = $teacher_info['salary'] ?? 0;
+            $teacher_address = $teacher_info['address'] ?? '';
+            $teacher_image = $teacher_info['image'] ?? '';
         
-        echo "<script>window.location='forteacher.php';</script>";
-        exit();
-    }
+            $sql_students_count = mysqli_query($conn, "SELECT COUNT(*) as total FROM students WHERE college = '$teacher_department'");
+            $total_students_by_dept = mysqli_fetch_assoc($sql_students_count)['total'] ?? 0;
+            
+            $sql_total_students = mysqli_query($conn, "SELECT COUNT(*) as total FROM students");
+            $total_students_all = mysqli_fetch_assoc($sql_total_students)['total'] ?? 0;
+            
+            $sql_total_college = mysqli_query($conn, "SELECT COUNT(DISTINCT college) as total FROM students");
+            $total_colleges = mysqli_fetch_assoc($sql_total_college)['total'] ?? 0;
+            // ============================================
+        // យកចំនួនថ្នាក់ដែលគ្រូកំពុងបង្រៀន
+        // ============================================
+        $sql_my_classes = mysqli_query($conn, "SELECT COUNT(*) as total FROM teacher_classes WHERE teacher_id = '$logged_in_id' AND status = 'active'");
+        $total_my_classes = mysqli_fetch_assoc($sql_my_classes)['total'] ?? 0;
+        
+        // យកចំនួនថ្នាក់សរុបទាំងអស់ (សកម្ម + មិនសកម្ម)
+        $sql_my_classes_all = mysqli_query($conn, "SELECT COUNT(*) as total FROM teacher_classes WHERE teacher_id = '$logged_in_id'");
+        $total_my_classes_all = mysqli_fetch_assoc($sql_my_classes_all)['total'] ?? 0;
+        
+        // យកចំនួនសិស្សសរុបដែលបានចុះឈ្មោះក្នុងថ្នាក់របស់គ្រូ
+        $sql_my_students = mysqli_query($conn, "SELECT COUNT(DISTINCT s.id) as total 
+                                                FROM students s 
+                                                JOIN teacher_classes tc ON s.college = tc.subject 
+                                                WHERE tc.teacher_id = '$logged_in_id' AND tc.status = 'active'");
+        $total_my_students = mysqli_fetch_assoc($sql_my_students)['total'] ?? 0;
+            
+            // ============================================
+            // យកកាលវិភាគដែលមានត្រងតាម Subject ឬ Teacher Name
+            // ============================================
+            $filter_type = isset($_GET['filter_type']) ? $_GET['filter_type'] : 'subject';
+            $filter_value = isset($_GET['filter_value']) ? $_GET['filter_value'] : '';
+            
+            if(empty($filter_value)) {
+                $filter_value = $teacher_subject;
+            }
+            
+            if($filter_type == 'subject') {
+                $schedule_query = "SELECT * FROM schedule_class 
+                                   WHERE subject = '$filter_value' 
+                                   ORDER BY date DESC, time_star ASC LIMIT 10";
+            } else if($filter_type == 'teacher') {
+                $schedule_query = "SELECT * FROM schedule_class 
+                                   WHERE teacher_name = '$filter_value' 
+                                   ORDER BY date DESC, time_star ASC LIMIT 10";
+            } else {
+                $schedule_query = "SELECT * FROM schedule_class 
+                                   WHERE department = '$teacher_department' 
+                                   ORDER BY date DESC, time_star ASC LIMIT 10";
+            }
+            
+            $schedule_result = mysqli_query($conn, $schedule_query);
+            
+            $subjects_query = "SELECT DISTINCT subject FROM schedule_class ORDER BY subject ASC";
+            $subjects_result = mysqli_query($conn, $subjects_query);
+            $subjects_list = [];
+            while($sub = mysqli_fetch_assoc($subjects_result)) {
+                $subjects_list[] = $sub['subject'];
+            }
+            
+            $teachers_query = "SELECT DISTINCT teacher_name FROM schedule_class WHERE teacher_name IS NOT NULL AND teacher_name != '' ORDER BY teacher_name ASC";
+            $teachers_result = mysqli_query($conn, $teachers_query);
+            $teachers_list = [];
+            while($tch = mysqli_fetch_assoc($teachers_result)) {
+                $teachers_list[] = $tch['teacher_name'];
+            }
+            
+            // ============================================
+            // យកពិន្ទុសិស្សពីតារាង student_grades (ថ្មី)
+            // ============================================
+            // Student Progress - យកពិន្ទុសិស្សតាមមុខវិជ្ជារបស់គ្រូ
+            $progress_query = "SELECT sg.*, s.college 
+                               FROM student_grades sg
+                               JOIN students s ON sg.student_id = s.id
+                               WHERE sg.subject = '$teacher_subject' 
+                               ORDER BY sg.total_score DESC 
+                               LIMIT 10";
+            $progress_result = mysqli_query($conn, $progress_query);
+            
+            // Top Students - យកសិស្សពូកែ (Grade A និង B)
+            $top_query = "SELECT sg.*, s.college 
+                          FROM student_grades sg
+                          JOIN students s ON sg.student_id = s.id
+                          WHERE sg.subject = '$teacher_subject' 
+                          AND sg.grade IN ('A', 'B')
+                          ORDER BY sg.total_score DESC 
+                          LIMIT 10";
+            $top_result = mysqli_query($conn, $top_query);
+            
+            // ============================================
+            // គណនាស្ថិតិពិន្ទុ
+            // ============================================
+            $stats_query = "SELECT 
+                                COUNT(*) as total_students,
+                                AVG(total_score) as avg_score,
+                                MAX(total_score) as max_score,
+                                MIN(total_score) as min_score
+                            FROM student_grades 
+                            WHERE subject = '$teacher_subject'";
+            $stats_result = mysqli_query($conn, $stats_query);
+            $stats_data = mysqli_fetch_assoc($stats_result);
+            
+            $avg_score = $stats_data['avg_score'] ?? 0;
+            $max_score = $stats_data['max_score'] ?? 0;
+            $min_score = $stats_data['min_score'] ?? 0;
+            $total_graded_students = $stats_data['total_students'] ?? 0;
+            
+            // គណនាចំនួនសិស្សតាមថ្នាក់
+            $grade_stats_query = "SELECT grade, COUNT(*) as count 
+                                  FROM student_grades 
+                                  WHERE subject = '$teacher_subject' 
+                                  GROUP BY grade";
+            $grade_stats_result = mysqli_query($conn, $grade_stats_query);
+            $grade_stats = ['A' => 0, 'B' => 0, 'C' => 0, 'D' => 0, 'F' => 0];
+            while($gs = mysqli_fetch_assoc($grade_stats_result)) {
+                if(isset($grade_stats[$gs['grade']])) {
+                    $grade_stats[$gs['grade']] = $gs['count'];
+                }
+            }
+            
+            // ============================================
+            // យកចំនួនថ្នាក់ដែលកំពុងបង្រៀន
+            // ============================================
+            $sql_teachers_total = mysqli_query($conn, "SELECT COUNT(*) as total FROM teachers");
+            $total_teachers = mysqli_fetch_assoc($sql_teachers_total)['total'] ?? 0;
+        
+            $today = date('Y-m-d');
+            $current_day = date('l');
+            
+            $today_classes_query = "SELECT tc.*, 
+                                    tl.id as log_id, 
+                                    tl.status as teaching_status,
+                                    tl.teaching_date,
+                                    tl.notes as teaching_notes
+                                    FROM teacher_classes tc
+                                    LEFT JOIN teaching_log tl ON tc.id = tl.class_id 
+                                        AND tl.teacher_id = tc.teacher_id 
+                                        AND tl.teaching_date = '$today'
+                                    WHERE tc.teacher_id = '$logged_in_id' 
+                                    AND tc.status = 'active'
+                                    AND (tc.schedule_day = '$current_day' OR tc.schedule_day IS NULL)
+                                    ORDER BY tc.start_time ASC";
+            $today_classes_result = mysqli_query($conn, $today_classes_query);
+            
+            $completed_count = 0;
+            $pending_count = 0;
+            $classes_today = [];
+            while($class = mysqli_fetch_assoc($today_classes_result)) {
+                $classes_today[] = $class;
+                if($class['teaching_status'] == 'completed') {
+                    $completed_count++;
+                } else {
+                    $pending_count++;
+                }
+            }
+         
+            if(isset($_POST['mark_taught'])) {
+                $class_id = mysqli_real_escape_string($conn, $_POST['class_id']);
+                $teaching_date = mysqli_real_escape_string($conn, $_POST['teaching_date']);
+                $notes = mysqli_real_escape_string($conn, $_POST['notes'] ?? '');
+                
+                $check_sql = "SELECT id FROM teaching_log 
+                              WHERE teacher_id = '$logged_in_id' 
+                              AND class_id = '$class_id' 
+                              AND teaching_date = '$teaching_date'";
+                $check_result = mysqli_query($conn, $check_sql);
+                
+                if(mysqli_num_rows($check_result) > 0) {
+                    $update_sql = "UPDATE teaching_log SET 
+                                   status = 'completed',
+                                   notes = '$notes',
+                                   updated_at = NOW()
+                                   WHERE teacher_id = '$logged_in_id' 
+                                   AND class_id = '$class_id' 
+                                   AND teaching_date = '$teaching_date'";
+                    mysqli_query($conn, $update_sql);
+                } else {
+                    $class_info_sql = "SELECT class_name, subject FROM teacher_classes WHERE id = '$class_id'";
+                    $class_info_result = mysqli_query($conn, $class_info_sql);
+                    $class_info = mysqli_fetch_assoc($class_info_result);
+                    
+                    $insert_sql = "INSERT INTO teaching_log (
+                        teacher_id, class_id, class_name, subject, 
+                        teaching_date, status, notes
+                    ) VALUES (
+                        '$logged_in_id', '$class_id', 
+                        '{$class_info['class_name']}', '{$class_info['subject']}',
+                        '$teaching_date', 'completed', '$notes'
+                    )";
+                    mysqli_query($conn, $insert_sql);
+                }
+                
+                echo "<script>window.location='forteacher.php';</script>";
+                exit();
+            }
+            
+            if(isset($_POST['mark_pending'])) {
+                $class_id = mysqli_real_escape_string($conn, $_POST['class_id']);
+                $teaching_date = mysqli_real_escape_string($conn, $_POST['teaching_date']);
+                
+                $update_sql = "UPDATE teaching_log SET 
+                               status = 'pending'
+                               WHERE teacher_id = '$logged_in_id' 
+                               AND class_id = '$class_id' 
+                               AND teaching_date = '$teaching_date'";
+                mysqli_query($conn, $update_sql);
+                
+                echo "<script>window.location='forteacher.php';</script>";
+                exit();
+            }
 ?>
 
 <!DOCTYPE html>
@@ -365,6 +385,18 @@
         .badge-completed { background: #dcfce7; color: #166534; }
         .badge-pending { background: #fef3c7; color: #92400e; }
         
+        .grade-badge {
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 700;
+        }
+        .grade-A { background: #dcfce7; color: #166534; }
+        .grade-B { background: #dbeafe; color: #1e40af; }
+        .grade-C { background: #cffafe; color: #0e7490; }
+        .grade-D { background: #fef3c7; color: #92400e; }
+        .grade-F { background: #fee2e2; color: #991b1b; }
+        
         @media (max-width: 768px) {
             .sidebar { width: 80px; }
             .sidebar-header h1, .sidebar-header p, .nav-item span { display: none; }
@@ -393,9 +425,10 @@
 <div class="container">
     <div class="sidebar">
         <div class="sidebar-header">
-            <img src="<?php echo !empty($teacher_image) ? $teacher_image : $logged_in_teacher ; ?>" 
-                 alt="Profile" 
-                 class="profile-img" />
+           
+                 <img src="<?= !empty($teacher_image)
+                  ? $teacher_image
+                  : 'images/default-user.png'; ?> " class="profile-img" >
             <h1 class="teacher-name"><?php echo htmlspecialchars($logged_in_teacher); ?></h1>
             <p class="teacher-dept">
                 <i class="fas fa-graduation-cap"></i> <?php echo htmlspecialchars($teacher_department); ?>
@@ -417,6 +450,10 @@
             <a href="Request.php" class="nav-item">
                 <i class="fas fa-file-signature"></i>
                 <span>Request</span>
+            </a>
+            <a href="substitute.php" class="nav-item">
+                <i class="fas fa-people-arrows"></i>
+                <span>Substitute Class</span>
             </a>
             <a href="settings_teacher.php" class="nav-item">
                 <i class="fas fa-cog"></i>
@@ -455,7 +492,58 @@
                 </div>
             </div>
         </div>
+        
+        <!-- KPI CARDS - Grade Statistics -->
+        <div class="kpi-row">
+            <div class="kpi-card" style="border-bottom-color: #4f46e5;">
+                <div class="kpi-title"><i class="fas fa-users"></i> Students in <?php echo strtoupper(htmlspecialchars($teacher_department)); ?> Dept</div>
+                <div class="kpi-number"><?php echo $total_students_by_dept; ?></div>
+                <small>Students from <?php echo htmlspecialchars($teacher_department); ?> department</small>
+            </div>
+            <div class="kpi-card" style="border-bottom-color: #10b981;">
+                <div class="kpi-title"><i class="fas fa-book"></i> Total Colleges</div>
+                <div class="kpi-number"><?php echo $total_colleges; ?></div>
+                <small>All colleges in system</small>
+            </div>
+            <div class="kpi-card" style="border-bottom-color: #f59e0b;">
+                <div class="kpi-title">
+        <i class="fas fa-chalkboard-teacher"></i> My Classes
+        <span class="badge bg-primary ms-2">Active: <?php echo $total_my_classes; ?></span>
+    </div>
+    <div class="kpi-number"><?php echo $total_my_classes; ?></div>
+    <small>
+      
+        
+        <i class="fas fa-book-open"></i> Total Classes: <?php echo $total_my_classes_all; ?>
+    </small>
+   
+</div>
+</div>
 
+<!-- GRADE STATISTICS KPI -->
+<div class="kpi-row">
+    <div class="kpi-card" style="border-bottom-color: #8b5cf6;">
+        <div class="kpi-title"><i class="fas fa-star"></i> Average Score</div>
+        <div class="kpi-number"><?php echo number_format($avg_score, 1); ?></div>
+        <small>Average score for <?php echo htmlspecialchars($teacher_subject); ?></small>
+    </div>
+    <div class="kpi-card" style="border-bottom-color: #ef4444;">
+        <div class="kpi-title"><i class="fas fa-arrow-up"></i> Highest Score</div>
+        <div class="kpi-number"><?php echo number_format($max_score, 1); ?></div>
+        <small>Highest score in <?php echo htmlspecialchars($teacher_subject); ?></small>
+    </div>
+    <div class="kpi-card" style="border-bottom-color: #3b82f6;">
+        <div class="kpi-title"><i class="fas fa-arrow-down"></i> Lowest Score</div>
+                <div class="kpi-number"><?php echo number_format($min_score, 1); ?></div>
+                <small>Lowest score in <?php echo htmlspecialchars($teacher_subject); ?></small>
+            </div>
+            <div class="kpi-card" style="border-bottom-color: #22c55e;">
+                <div class="kpi-title"><i class="fas fa-users"></i> Graded Students</div>
+                <div class="kpi-number"><?php echo $total_graded_students; ?></div>
+                <small>Students with grades in <?php echo htmlspecialchars($teacher_subject); ?></small>
+            </div>
+        </div>
+        
         <!-- ============================================ -->
         <!-- TODAY'S CLASSES                              -->
         <!-- ============================================ -->
@@ -517,7 +605,6 @@
                                     </td>
                                     <td>
                                         <?php if(!$is_completed): ?>
-                                            <!-- ប៊ូតុងសម្គាល់ថាបានបង្រៀនហើយ -->
                                             <button type="button" class="btn btn-sm btn-success" 
                                                     data-bs-toggle="modal" 
                                                     data-bs-target="#markTaughtModal"
@@ -527,7 +614,6 @@
                                                 <i class="fas fa-check"></i> Mark Taught
                                             </button>
                                         <?php else: ?>
-                                            <!-- ប៊ូតុងកំណត់ជា Pending វិញ -->
                                             <form method="POST" style="display:inline;">
                                                 <input type="hidden" name="class_id" value="<?php echo $class['id']; ?>">
                                                 <input type="hidden" name="teaching_date" value="<?php echo $today; ?>">
@@ -551,176 +637,61 @@
                 <?php endif; ?>
             </div>
         </div>
-
-        <!-- KPI CARDS -->
-        <div class="kpi-row">
-            <div class="kpi-card" style="border-bottom-color: #4f46e5;">
-                <div class="kpi-title"><i class="fas fa-users"></i> Students in <?php echo strtoupper(htmlspecialchars($teacher_department)); ?> Dept</div>
-                <div class="kpi-number"><?php echo $total_students_by_dept; ?></div>
-                <small>Students from <?php echo htmlspecialchars($teacher_department); ?> department</small>
-            </div>
-            <div class="kpi-card" style="border-bottom-color: #10b981;">
-                <div class="kpi-title"><i class="fas fa-book"></i> Total Colleges</div>
-                <div class="kpi-number"><?php echo $total_colleges; ?></div>
-                <small>All colleges in system</small>
-            </div>
-            <div class="kpi-card" style="border-bottom-color: #f59e0b;">
-                <div class="kpi-title"><i class="fas fa-chalkboard-teacher"></i> Total Teachers</div>
-                <div class="kpi-number"><?php echo $total_teachers; ?></div>
-                <small>Active teachers in system</small>
-            </div>
-        </div>
-        
-        <!-- CLASS SCHEDULE -->
+        <!-- GRADE DISTRIBUTION CHART -->
         <div class="kpi-row">
             <div class="kpi-card" style="border-bottom-color: #8b5cf6; width: 100%;">
-                <div class="kpi-title">
-                    <i class="fas fa-calendar-alt"></i> 
-                    Class Schedule for <?php echo htmlspecialchars($teacher_department); ?> Department
-                </div>
-                <small>
-                    <i class="fas fa-user"></i> Teacher: <strong><?php echo htmlspecialchars($logged_in_teacher); ?></strong>
-                </small>
-                <div class="table-responsive">
-                    <table class="table table-bordered">
-                        <thead>
-                            <tr>
-                                <th>Time Start</th>
-                                <th>Time End</th>
-                                <th>Subject</th>
-                                <th>Department</th>
-                                <th>Classroom</th>
-                                <th>Shift</th>
-                                <th>Year</th>
-                                <th>Semester</th>
-                                <th>Date</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                        <?php
-                        if(mysqli_num_rows($schedule_result) > 0){
-                            while($row = mysqli_fetch_assoc($schedule_result)){
-                        ?>
-                        <tr>
-                            <td><?= htmlspecialchars($row['time_star'] ?? ''); ?></td>
-                            <td><?= htmlspecialchars($row['time_end'] ?? ''); ?></td>
-                            <td><?= htmlspecialchars($row['subject'] ?? ''); ?></td>
-                            <td><?= htmlspecialchars($row['department'] ?? ''); ?></td>
-                            <td><?= htmlspecialchars($row['class'] ?? ''); ?></td>
-                            <td><?= htmlspecialchars($row['shift'] ?? ''); ?></td>
-                            <td><?= htmlspecialchars($row['year'] ?? ''); ?></td>
-                            <td><?= htmlspecialchars($row['semester'] ?? ''); ?></td>
-                            <td><?= htmlspecialchars($row['date'] ?? ''); ?></td>
-                        </tr>
-                        <?php
-                            }
-                        } else {
-                            echo '<tr><td colspan="9" class="text-center">No schedule found for your department</td></tr>';
-                        }
-                        ?>
-                        </tbody>
-                    </table>
+                <div class="kpi-title"><i class="fas fa-chart-bar"></i> Grade Distribution - <?php echo htmlspecialchars($teacher_subject); ?></div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <canvas id="gradeChart"></canvas>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="row g-3 mt-2">
+                            <div class="col-6">
+                                <div class="p-3 text-center rounded" style="background: #dcfce7; border: 2px solid #166534;">
+                                    <h3 class="text-success">A</h3>
+                                    <p class="mb-0"><?php echo $grade_stats['A']; ?> Students</p>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="p-3 text-center rounded" style="background: #dbeafe; border: 2px solid #1e40af;">
+                                    <h3 class="text-primary">B</h3>
+                                    <p class="mb-0"><?php echo $grade_stats['B']; ?> Students</p>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="p-3 text-center rounded" style="background: #cffafe; border: 2px solid #0e7490;">
+                                    <h3 class="text-info">C</h3>
+                                    <p class="mb-0"><?php echo $grade_stats['C']; ?> Students</p>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="p-3 text-center rounded" style="background: #fef3c7; border: 2px solid #92400e;">
+                                    <h3 class="text-warning">D</h3>
+                                    <p class="mb-0"><?php echo $grade_stats['D']; ?> Students</p>
+                                </div>
+                            </div>
+                            <div class="col-12">
+                                <div class="p-3 text-center rounded" style="background: #fee2e2; border: 2px solid #991b1b;">
+                                    <h3 class="text-danger">F</h3>
+                                    <p class="mb-0"><?php echo $grade_stats['F']; ?> Students</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
         
-        <!-- STUDENT PROGRESS & TOP STUDENTS -->
-        <div class="kpi-row">
-            <div class="kpi-card" style="border-bottom-color: #eb668c; flex: 1;">
-                <div class="kpi-title">
-                    <i class="fas fa-user-graduate"></i> 
-                    Student Progress (<?php echo htmlspecialchars($teacher_subject); ?>)
-                </div>
-                <small>
-                    <i class="fas fa-chalkboard-teacher"></i> Subject taught by: <strong><?php echo htmlspecialchars($logged_in_teacher); ?></strong>
-                </small>
-                <div class="table-responsive">
-                    <table class="table table-bordered">
-                        <thead>
-                            <tr>
-                                <th>Name</th>
-                                <th>Subject</th>
-                                <th>Score</th>
-                                <th>Grade</th>
-                                <th>Department</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                        <?php
-                        if(mysqli_num_rows($progress_result) > 0){
-                            while($row = mysqli_fetch_assoc($progress_result)){
-                        ?>
-                        <tr>
-                            <td><?= htmlspecialchars($row['name'] ?? ''); ?></td>
-                            <td><?= htmlspecialchars($row['subject'] ?? ''); ?></td>
-                            <td><?= htmlspecialchars($row['score'] ?? ''); ?></td>
-                            <td><?= htmlspecialchars($row['Grade'] ?? ''); ?></td>
-                            <td><?= htmlspecialchars($row['college'] ?? ''); ?></td>
-                        </tr>
-                        <?php
-                            }
-                        } else {
-                            echo '<tr><td colspan="5" class="text-center">No student data found for your subject</td></tr>';
-                        }
-                        ?>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-            
-            <div class="kpi-card" style="border-bottom-color: #40189D; flex: 1;">
-                <div class="kpi-title">
-                    <i class="fas fa-trophy"></i> 
-                    Top Students (<?php echo htmlspecialchars($teacher_subject); ?>)
-                </div>
-                <small>
-                    <i class="fas fa-star"></i> Students with A or B grades
-                </small>
-                <div class="table-responsive">
-                    <table class="table table-bordered">
-                        <thead>
-                            <tr>
-                                <th>Name</th>
-                                <th>Subject</th>
-                                <th>Score</th>
-                                <th>Grade</th>
-                                <th>Department</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                        <?php
-                        if(mysqli_num_rows($top_result) > 0){
-                            while($row = mysqli_fetch_assoc($top_result)){
-                        ?>
-                        <tr>
-                            <td><?= htmlspecialchars($row['name'] ?? ''); ?></td>
-                            <td><?= htmlspecialchars($row['subject'] ?? ''); ?></td>
-                            <td><?= htmlspecialchars($row['score'] ?? ''); ?></td>
-                            <td><?= htmlspecialchars($row['Grade'] ?? ''); ?></td>
-                            <td><?= htmlspecialchars($row['college'] ?? ''); ?></td>
-                        </tr>
-                        <?php
-                            }
-                        } else {
-                            echo '<tr><td colspan="5" class="text-center">No top students found for your subject</td></tr>';
-                        }
-                        ?>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+       
         </div>
-        
-      
-        
-        
         
     </div>
 </div>
 
-<!-- ============================================ -->
-<!-- MARK TAUGHT MODAL                            -->
-<!-- ============================================ -->
+
+
+
 <div class="modal fade" id="markTaughtModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -750,6 +721,7 @@
     </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
 function updateDateTime() {
     const now = new Date();
@@ -766,6 +738,70 @@ function updateDateTime() {
 }
 updateDateTime();
 setInterval(updateDateTime, 1000);
+
+// ============================================
+// Grade Distribution Chart
+// ============================================
+document.addEventListener('DOMContentLoaded', function() {
+    const ctx = document.getElementById('gradeChart');
+    if(ctx) {
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: ['A', 'B', 'C', 'D', 'F'],
+                datasets: [{
+                    label: 'Number of Students',
+                    data: [
+                        <?php echo $grade_stats['A']; ?>,
+                        <?php echo $grade_stats['B']; ?>,
+                        <?php echo $grade_stats['C']; ?>,
+                        <?php echo $grade_stats['D']; ?>,
+                        <?php echo $grade_stats['F']; ?>
+                    ],
+                    backgroundColor: [
+                        '#22c55e',
+                        '#3b82f6',
+                        '#06b6d4',
+                        '#f59e0b',
+                        '#ef4444'
+                    ],
+                    borderColor: [
+                        '#16a34a',
+                        '#2563eb',
+                        '#0891b2',
+                        '#d97706',
+                        '#dc2626'
+                    ],
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    title: {
+                        display: true,
+                        text: 'Grade Distribution',
+                        font: {
+                            size: 16,
+                            weight: 'bold'
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            stepSize: 1
+                        }
+                    }
+                }
+            }
+        });
+    }
+});
 
 // ============================================
 // Modal Script for Mark Taught
@@ -785,8 +821,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 });
-
-
 </script>
 </body>
 </html>
